@@ -1,0 +1,187 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%; /* White */
+    --foreground: 0 0% 0%; /* Black */
+    --card: 0 0% 98%; /* Very light gray */
+    --card-foreground: 0 0% 0%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 0%;
+    --primary: 0 84% 60%; /* LinaClyn Red (#E31B23) - mais vibrante */
+    --primary-foreground: 0 0% 100%; /* White text on red */
+    --secondary: 0 0% 96%; /* Light gray */
+    --secondary-foreground: 0 0% 0%; /* Black text */
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%; /* Medium gray */
+    --accent: 0 0% 96%;
+    --accent-foreground: 0 0% 0%;
+    --destructive: 0 84% 60%; /* Same red as primary */
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 0 84% 60%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 0 0% 0%; /* Black */
+    --foreground: 0 0% 100%; /* White */
+    --card: 0 0% 12%; /* Dark gray */
+    --card-foreground: 0 0% 100%;
+    --popover: 0 0% 0%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 0 84% 60%; /* LinaClyn Red stays vibrant */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 80%; /* Light gray */
+    --accent: 0 0% 12%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 12%;
+    --input: 0 0% 12%;
+    --ring: 0 84% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* LinaClyn custom palette */
+@layer utilities {
+  .text-linaclyn-red {
+    color: #e31b23;
+  }
+
+  .bg-linaclyn-red {
+    background-color: #e31b23;
+  }
+
+  .border-linaclyn-red {
+    border-color: #e31b23;
+  }
+
+  .hover\:bg-linaclyn-red-dark:hover {
+    background-color: #c41e3a;
+  }
+
+  .hover\:bg-linaclyn-red-light:hover {
+    background-color: #fff0f0;
+  }
+
+  .bg-linaclyn-red-light {
+    background-color: #fff0f0;
+  }
+
+  .bg-linaclyn-gray-light {
+    background-color: #f8f9fa;
+  }
+
+  .bg-linaclyn-gray-medium {
+    background-color: #e9ecef;
+  }
+
+  .bg-linaclyn-red-medium {
+    background-color: #f8d7da;
+  }
+
+  .from-linaclyn-red-light {
+    --tw-gradient-from: #fff0f0;
+    --tw-gradient-to: rgba(255, 240, 240, 0);
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+  }
+
+  .to-linaclyn-gray-light {
+    --tw-gradient-to: #f8f9fa;
+  }
+
+  .from-linaclyn-red {
+    --tw-gradient-from: #e31b23;
+    --tw-gradient-to: rgba(227, 27, 35, 0);
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+  }
+
+  .to-linaclyn-red-dark {
+    --tw-gradient-to: #c41e3a;
+  }
+
+  /* LinaClyn Carousel Gradient */
+  .bg-linaclyn-carousel {
+    background: linear-gradient(90deg, #0d0d0d 0%, #3a1a1a 50%, #e8453c 100%);
+  }
+}
+
+/* Animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.4s ease-out;
+}
+
+/* Hover effects */
+.hover-lift {
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #e31b23;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #c41e3a;
+}
