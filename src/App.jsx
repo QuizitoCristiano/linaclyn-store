@@ -18,6 +18,7 @@ import { Footer } from "./components/Footer";
 import AdminProdutos from "./AdiminProtudos/Produtos";
 import AdminPedidos from "./AdiminProtudos/Pedidos";
 import PaginaClientes from "./AdiminProtudos/Clientes";
+import { FloatingChat } from "./pages/FloatingChat";
 
 
 function AppContent() {
@@ -25,6 +26,7 @@ function AppContent() {
   const { user, isAdmin, loading, logout } = useAuth();
 
   if (loading) return <LoadingOverlay />;
+
 
   if (!user) {
     return <AuthPage onLoginSuccess={() => setCurrentPage("home")} />;
@@ -71,6 +73,10 @@ function AppContent() {
           {currentPage === "servicos" && <Servicos />}
           {currentPage === "contato" && <Contato />}
         </main>
+
+
+        {/* O CHAT SÓ APARECE PARA O CLIENTE (E SE NÃO FOR ADMIN) */}
+        {!isAdmin && <FloatingChat userId={user.uid} />}
         <Footer />
       </>
     );
