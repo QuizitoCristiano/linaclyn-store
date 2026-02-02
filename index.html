@@ -1,36 +1,44 @@
 <!doctype html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LinaClyn - Sua Plataforma de Soluções</title>
-    <script>
-      // Aplicar tema antes do React carregar para evitar flash
-      (function() {
-        try {
-          const savedTheme = localStorage.getItem('theme');
-          if (savedTheme) {
-            document.documentElement.classList.toggle('dark', savedTheme === 'dark');
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>LinaClyn Store | Lifestyle & Performance Esportiva</title>
+
+  <meta name="description"
+    content="A LinaClyn Store oferece o melhor do lifestyle premium. Roupas e acessórios para quem busca performance e estilo esportivo único.">
+
+  <meta name="keywords" content="LinaClyn, Lina Clyn Store, moda esportiva, lifestyle, performance, loja de roupas">
+
+  <script>
+    // Seu script de tema continua aqui exatamente igual
+    (function () {
+      try {
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme) {
+          document.documentElement.classList.toggle('dark', savedTheme === 'dark');
+        } else {
+          const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (prefersDark) {
+            document.documentElement.classList.add('dark');
+            localStorage.setItem('theme', 'dark');
           } else {
-            // Se não há tema salvo, usar preferência do sistema
-            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (prefersDark) {
-              document.documentElement.classList.add('dark');
-              localStorage.setItem('theme', 'dark');
-            } else {
-              localStorage.setItem('theme', 'light');
-            }
+            localStorage.setItem('theme', 'light');
           }
-        } catch (e) {
-          // Fallback se localStorage não estiver disponível
-          console.warn('localStorage não disponível:', e);
         }
-      })();
-    </script>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+      } catch (e) {
+        console.warn('localStorage não disponível:', e);
+      }
+    })();
+  </script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+
 </html>
