@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 // Importe sua imagem local
 import Quizito from '../../imagens/quizito.png';
 import BuleRed from '../../imagens/Nike_Academy.png'
-import Quizito1 from '../../imagens/quizito4.png'
+import Quizito1 from '../../imagens/Quizito4.png'
 import Quizito2 from '../../imagens/Quizito2.png'
 
 export function SpecialOffersCarousel() {
@@ -57,6 +57,9 @@ export function SpecialOffersCarousel() {
   const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + offers.length) % offers.length);
 
   const currentOffer = offers[currentSlide];
+
+
+  // Ajuste de imagem para deploy.
 
   return (
     <section className="py-4 px-4 md:px-0">
