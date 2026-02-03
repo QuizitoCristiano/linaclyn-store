@@ -1,5 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Send, Mic, Image as ImageIcon, Pencil, Trash2, Square } from 'lucide-react';
+import {
+    MessageCircle, X, Send, Mic, Image as ImageIcon,
+    Trash2, Square, User, Phone, CheckCheck
+} from 'lucide-react';
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 import { useChat } from "../context/ChatContext";
@@ -12,32 +15,84 @@ export function FloatingChat() {
 
     const { user } = useAuth();
     const { allChats, sendMessage, deleteMessage } = useChat();
+    const [leadData, setLeadData] = useState({ nome: '', whatsapp: '' });
+    const [hasIdentified, setHasIdentified] = useState(false);
 
-    const userId = user?.email || "anonimo";
-    const chatHistory = allChats[userId] || [
-        { id: 1, text: "Olá! Como podemos ajudar?", sender: 'admin', type: 'text', clientName: "Suporte" }
-    ];
+    // 1. DEFINIÇÃO DO ID ÚNICO (Essencial para o espelhamento)
+    const userId = user ? user.uid : (hasIdentified ? `lead_${leadData.whatsapp.replace(/\D/g, '')}` : null);
+
+    // 2. BUSCA O HISTÓRICO REAL DO FIREBASE
+    // Se não houver histórico ainda, mostra a mensagem de boas-vindas padrão
+    const chatHistory = (userId && allChats[userId] && allChats[userId].length > 0)
+        ? allChats[userId]
+        : [{
+            id: 'welcome',
+            text: "Olá! Como podemos ajudar hoje?",
+            sender: 'admin',
+            type: 'text',
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }];
 
     const fileInputRef = useRef(null);
     const mediaRecorder = useRef(null);
     const audioChunks = useRef([]);
     const scrollRef = useRef(null);
 
+    // Auto-scroll sempre que o chatHistory mudar (mensagens novas do admin ou do cliente)
     useEffect(() => {
         if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+            scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
         }
     }, [chatHistory, isOpen]);
 
+    const handleStartChat = () => {
+        if (leadData.nome.trim().length < 3) {
+            toast.error("Por favor, digite seu nome completo.");
+            return;
+        }
+        if (leadData.whatsapp.replace(/\D/g, '').length < 10) {
+            toast.error("Digite um WhatsApp válido com DDD.");
+            return;
+        }
+        setHasIdentified(true);
+        toast.success(`Bem-vindo, ${leadData.nome}!`);
+    };
+
     const handleSend = () => {
-        if (!message.trim()) return;
+        if (!message.trim() || !userId) return;
+        const currentUserName = user?.displayName || leadData.nome;
+
+        const payload = {
+            text: message,
+            sender: 'client', // Identifica para o Admin que esta é uma mensagem do cliente
+            type: 'text'
+        };
+
         if (editingId) {
-            sendMessage(userId, { id: editingId, text: message, sender: 'user', type: 'text', isEdited: true }, user?.name);
+            sendMessage(userId, { ...payload, id: editingId, isEdited: true }, currentUserName);
             setEditingId(null);
         } else {
-            sendMessage(userId, { text: message, sender: 'user', type: 'text' }, user?.name);
+            sendMessage(userId, payload, currentUserName);
         }
         setMessage('');
+    };
+
+    const handleImageUpload = (e) => {
+        const file = e.target.files[0];
+        if (file && file.size <= 5 * 1024 * 1024) {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onloadend = () => {
+                const name = user?.displayName || leadData.nome;
+                sendMessage(userId, {
+                    image: reader.result,
+                    sender: 'client',
+                    type: 'image'
+                }, name);
+            };
+        } else if (file) {
+            toast.error("A imagem deve ter no máximo 5MB.");
+        }
     };
 
     const startRecording = async () => {
@@ -51,13 +106,18 @@ export function FloatingChat() {
                 const reader = new FileReader();
                 reader.readAsDataURL(audioBlob);
                 reader.onloadend = () => {
-                    sendMessage(userId, { audio: reader.result, sender: 'user', type: 'audio' }, user?.name);
+                    const name = user?.displayName || leadData.nome;
+                    sendMessage(userId, {
+                        audio: reader.result,
+                        sender: 'client',
+                        type: 'audio'
+                    }, name);
                 };
             };
             mediaRecorder.current.start();
             setIsRecording(true);
         } catch (err) {
-            toast.error("Erro ao acessar microfone.");
+            toast.error("Microfone não autorizado.");
         }
     };
 
@@ -69,133 +129,163 @@ export function FloatingChat() {
         }
     };
 
-    const handleImageUpload = (e) => {
-        const file = e.target.files[0];
-        if (file && file.size <= 5 * 1024 * 1024) {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onloadend = () => {
-                sendMessage(userId, { image: reader.result, sender: 'user', type: 'image' }, user?.name);
-            };
-        } else if (file) {
-            toast.error("Imagem muito pesada (máx 5MB)");
-        }
-    };
-
     return (
-        <div className="fixed bottom-6 right-6 z-50 font-sans">
-            {!isOpen && (
-                <button onClick={() => setIsOpen(true)} className="bg-linaclyn-red text-white p-4 rounded-full shadow-lg hover:scale-110 transition-transform">
-                    <MessageCircle size={28} />
-                </button>
-            )}
-
+        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end pointer-events-none">
             {isOpen && (
-                <div className="bg-background w-[350px] h-[520px] rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden animate-in slide-in-from-bottom-5">
-                    {/* Header */}
-                    <div className="bg-linaclyn-red p-4 text-white flex justify-between items-center shadow-md">
-                        <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center font-bold text-xs">LC</div>
+                <div className="pointer-events-auto bg-background w-[360px] h-[550px] rounded-3xl shadow-2xl border border-border flex flex-col overflow-hidden animate-in slide-in-from-bottom-6 duration-300 mb-4">
+
+                    {/* HEADER */}
+                    <div className="bg-linaclyn-red p-5 text-white flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                            <div className="relative">
+                                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center font-black text-sm border border-white/30">LC</div>
+                                <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 border-2 border-linaclyn-red rounded-full"></div>
+                            </div>
                             <div>
-                                <span className="font-bold text-sm block leading-none">Suporte LinaClyn</span>
-                                <span className="text-[10px] opacity-80 italic">Online agora</span>
+                                <h4 className="font-bold text-sm leading-tight">LinaClyn Suporte</h4>
+                                <p className="text-[10px] text-white/80">Online agora</p>
                             </div>
                         </div>
-                        <button onClick={() => setIsOpen(false)} className="hover:rotate-90 transition-transform">
-                            <X size={20} />
+                        <button onClick={() => setIsOpen(false)} className="bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors">
+                            <X size={18} />
                         </button>
                     </div>
 
-                    {/* Área de Mensagens */}
-                    <div ref={scrollRef} className="flex-1 p-4 overflow-y-auto space-y-4 bg-muted/10">
-                        {chatHistory.map((msg) => (
-                            <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`max-w-[85%] p-3 rounded-2xl text-sm relative group shadow-sm ${msg.sender === 'user'
-                                    ? 'bg-linaclyn-red text-white rounded-tr-none'
-                                    : 'bg-card border border-border text-foreground rounded-tl-none'
-                                    }`}>
+                    {!user && !hasIdentified ? (
+                        /* FORMULÁRIO DE IDENTIFICAÇÃO */
+                        <div className="flex-1 p-8 flex flex-col justify-center bg-zinc-50 dark:bg-zinc-950 space-y-6">
+                            <div className="text-center space-y-2">
+                                <div className="w-16 h-16 bg-linaclyn-red/10 text-linaclyn-red rounded-full flex items-center justify-center mx-auto mb-2">
+                                    <MessageCircle size={32} />
+                                </div>
+                                <h3 className="font-black text-xl text-foreground">Inicie seu chat</h3>
+                                <p className="text-sm text-muted-foreground">Como podemos te chamar?</p>
+                            </div>
 
-                                    {/* Conteúdo da Mensagem */}
-                                    {msg.type === 'text' && (
-                                        <p className="leading-relaxed">
-                                            {msg.text} {msg.isEdited && <small className="opacity-60 text-[9px] block">(editada)</small>}
-                                        </p>
-                                    )}
+                            <div className="space-y-4">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">Seu Nome</label>
+                                    <div className="relative group">
+                                        <User className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-linaclyn-red transition-colors" size={18} />
+                                        <input
+                                            type="text"
+                                            placeholder="Ex: João Silva"
+                                            className="w-full pl-10 pr-4 py-3 bg-background border rounded-2xl outline-none focus:ring-2 ring-linaclyn-red/20 focus:border-linaclyn-red transition-all"
+                                            onChange={(e) => setLeadData({ ...leadData, nome: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">WhatsApp</label>
+                                    <div className="relative group">
+                                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-linaclyn-red transition-colors" size={18} />
+                                        <input
+                                            type="tel"
+                                            placeholder="(00) 00000-0000"
+                                            className="w-full pl-10 pr-4 py-3 bg-background border rounded-2xl outline-none focus:ring-2 ring-linaclyn-red/20 focus:border-linaclyn-red transition-all"
+                                            onChange={(e) => setLeadData({ ...leadData, whatsapp: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
 
-                                    {msg.type === 'image' && (
-                                        <div className="overflow-hidden rounded-lg">
-                                            <img src={msg.image} className="max-h-60 w-full object-cover" alt="Envio" />
-                                        </div>
-                                    )}
+                            <button onClick={handleStartChat} className="w-full bg-linaclyn-red text-white py-4 rounded-2xl font-bold shadow-lg hover:scale-[1.02] active:scale-95 transition-all">
+                                ENTRAR NO CHAT
+                            </button>
+                        </div>
+                    ) : (
+                        /* CHAT ATIVO - HISTÓRICO REAL */
+                        <>
+                            <div ref={scrollRef} className="flex-1 p-4 overflow-y-auto space-y-4 bg-zinc-50/50 dark:bg-zinc-900/50">
+                                {chatHistory.map((msg) => (
+                                    <div key={msg.id} className={`flex ${msg.sender === 'client' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
+                                        <div className={`max-w-[85%] p-3.5 rounded-2xl text-[13px] shadow-sm relative group ${msg.sender === 'client'
+                                            ? 'bg-linaclyn-red text-white rounded-tr-none'
+                                            : 'bg-background border text-foreground rounded-tl-none'
+                                            }`}>
 
-                                    {msg.type === 'audio' && (
-                                        <div className="min-w-[210px] py-1">
-                                            <audio src={msg.audio} controls className="w-full h-10" />
-                                        </div>
-                                    )}
-
-                                    {/* Ações: Só aparecem para mensagens do usuário (Cliente) */}
-                                    {msg.sender === 'user' && (
-                                        <div className="absolute top-0 -left-14 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button
-                                                onClick={() => deleteMessage(userId, msg.id)}
-                                                className="p-1.5 bg-background border border-border rounded-full text-muted-foreground hover:text-red-500 shadow-sm"
-                                                title="Apagar"
-                                            >
-                                                <Trash2 size={12} />
-                                            </button>
                                             {msg.type === 'text' && (
-                                                <button
-                                                    onClick={() => { setEditingId(msg.id); setMessage(msg.text); }}
-                                                    className="p-1.5 bg-background border border-border rounded-full text-muted-foreground hover:text-linaclyn-red shadow-sm"
-                                                    title="Editar"
-                                                >
-                                                    <Pencil size={12} />
-                                                </button>
+                                                <p className="leading-relaxed font-medium whitespace-pre-wrap">
+                                                    {msg.text}
+                                                    {msg.isEdited && <span className="text-[9px] opacity-50 block mt-1">(editado)</span>}
+                                                </p>
                                             )}
+
+                                            {msg.type === 'image' && (
+                                                <img src={msg.image} className="rounded-lg max-h-60 w-full object-cover" alt="Enviada" />
+                                            )}
+
+                                            {msg.type === 'audio' && (
+                                                <audio src={msg.audio} controls className="w-48 h-8 brightness-95" />
+                                            )}
+
+                                            {/* Opção de deletar apenas para mensagens do próprio cliente */}
+                                            {msg.sender === 'client' && (
+                                                <div className="absolute -left-12 top-1/2 -translate-y-1/2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button onClick={() => deleteMessage(userId, msg.id)} className="p-1.5 bg-background border rounded-full text-red-500 hover:bg-red-50">
+                                                        <Trash2 size={12} />
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            <div className={`text-[9px] mt-1 flex items-center gap-1 ${msg.sender === 'client' ? 'justify-end text-white/70' : 'text-muted-foreground'}`}>
+                                                {msg.timestamp} {msg.sender === 'client' && <CheckCheck size={10} />}
+                                            </div>
                                         </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* INPUT DE MENSAGENS */}
+                            <div className="p-4 bg-background border-t">
+                                <div className={`flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 rounded-2xl px-3 py-2 border-2 transition-all ${isRecording ? 'border-red-500' : 'border-transparent focus-within:border-linaclyn-red/50'}`}>
+
+                                    {!isRecording && (
+                                        <button onClick={() => fileInputRef.current.click()} className="text-muted-foreground hover:text-linaclyn-red transition-colors p-1">
+                                            <ImageIcon size={20} />
+                                            <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleImageUpload} />
+                                        </button>
+                                    )}
+
+                                    <input
+                                        type="text"
+                                        value={message}
+                                        disabled={isRecording}
+                                        onChange={(e) => setMessage(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                                        placeholder={isRecording ? "Gravando áudio..." : "Escreva uma mensagem..."}
+                                        className="flex-1 bg-transparent border-none outline-none text-sm py-1 placeholder:text-muted-foreground/60"
+                                    />
+
+                                    {message.trim() ? (
+                                        <button onClick={handleSend} className="bg-linaclyn-red text-white p-2 rounded-xl hover:scale-105 transition-transform shadow-md">
+                                            <Send size={16} />
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={isRecording ? stopRecording : startRecording}
+                                            className={`p-2 rounded-xl transition-all ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'text-muted-foreground hover:bg-zinc-200'}`}
+                                        >
+                                            {isRecording ? <Square size={16} /> : <Mic size={20} />}
+                                        </button>
                                     )}
                                 </div>
                             </div>
-                        ))}
-                    </div>
-
-                    {/* Footer / Input */}
-                    <div className="p-4 bg-background border-t border-border">
-                        <div className="flex items-center gap-2 bg-secondary rounded-2xl px-3 py-2 border border-transparent focus-within:border-linaclyn-red transition-all shadow-inner">
-                            {!isRecording && (
-                                <button onClick={() => fileInputRef.current.click()} className="text-muted-foreground hover:text-linaclyn-red transition-colors">
-                                    <ImageIcon size={20} />
-                                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
-                                </button>
-                            )}
-
-                            <input
-                                type="text"
-                                value={message}
-                                disabled={isRecording}
-                                onChange={(e) => setMessage(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                                placeholder={isRecording ? "Gravando áudio..." : "Sua mensagem..."}
-                                className="flex-1 bg-transparent border-none outline-none text-sm text-foreground placeholder:text-muted-foreground/60"
-                            />
-
-                            {message.trim() ? (
-                                <button onClick={handleSend} className="text-linaclyn-red hover:scale-110 transition-transform">
-                                    <Send size={20} />
-                                </button>
-                            ) : (
-                                <button
-                                    onClick={isRecording ? stopRecording : startRecording}
-                                    className={`${isRecording ? 'text-red-500 animate-pulse' : 'text-muted-foreground hover:text-linaclyn-red'} transition-colors`}
-                                >
-                                    {isRecording ? <Square size={20} /> : <Mic size={20} />}
-                                </button>
-                            )}
-                        </div>
-                    </div>
+                        </>
+                    )}
                 </div>
             )}
+
+            {/* BOTÃO FLUTUANTE PARA ABRIR/FECHAR */}
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="pointer-events-auto bg-linaclyn-red text-white p-5 rounded-2xl shadow-2xl hover:scale-110 active:scale-95 transition-all group relative"
+            >
+                {isOpen ? <X size={28} /> : <MessageCircle size={28} className="group-hover:rotate-12 transition-transform" />}
+                {!isOpen && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 border-4 border-white dark:border-zinc-950 rounded-full animate-bounce"></span>
+                )}
+            </button>
         </div>
     );
 }

@@ -1,87 +1,106 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { toast } from "sonner";
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged
+} from "firebase/auth";
+import { auth, db } from "../services/config";
+import { doc, setDoc, getDoc } from "firebase/firestore"; // Adicionei o getDoc aqui!
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [loading, setLoading] = useState(true); // Começa em true para checar o localStorage
 
-  // 1. Único useEffect para inicializar o App
+  const ADMIN_EMAIL = "quizitocristiano10@gmail.com";
+
+  // --- UM ÚNICO EFFECT PARA CONTROLAR TUDO ---
   useEffect(() => {
-    const checkUser = () => {
-      const savedUser = localStorage.getItem("linaclyn_user");
-      if (savedUser) {
-        const parsedUser = JSON.parse(savedUser);
-        setUser(parsedUser);
-        setIsAdmin(parsedUser.role === 'admin' || parsedUser.email === "admin@linaclyn.com");
-      }
-      setLoading(false); // Libera o AppContent após a checagem
-    };
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        // 1. Define o usuário básico do Auth
+        setUser(firebaseUser);
 
-    checkUser();
+        // 2. Busca permissões extras no Firestore
+        try {
+          const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+          const userData = userDoc.data();
+
+          // 3. Prova Real: É Admin se tiver o email master OU se o role for admin no banco
+          if (firebaseUser.email === ADMIN_EMAIL || userData?.role === 'admin') {
+            setIsAdmin(true);
+          } else {
+            setIsAdmin(false);
+          }
+        } catch (error) {
+          console.error("Erro ao buscar role do usuário:", error);
+          // Fallback apenas por email se o banco falhar
+          setIsAdmin(firebaseUser.email === ADMIN_EMAIL);
+        }
+      } else {
+        setUser(null);
+        setIsAdmin(false);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  // 2. Função de Login Unificada
   const login = async (email, password) => {
     setLoading(true);
     try {
-      // Simulação de delay de rede
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      // Lógica de Admin Fictícia (depois você troca pela do Banco)
-      const role = email === "admin@linaclyn.com" ? "admin" : "client";
-      const userData = { email, name: "Membro LinaClyn", role };
-
-      // SALVA TUDO NO LOCALSTORAGE
-      localStorage.setItem("linaclyn_user", JSON.stringify(userData));
-
-      setUser(userData);
-      setIsAdmin(role === "admin");
-      toast.success("Login bem-sucedido!");
+      await signInWithEmailAndPassword(auth, email, password);
+      toast.success("Bem-vindo de volta!");
       return true;
     } catch (error) {
-      toast.error("Falha no login. Verifique os dados.");
+      toast.error("Erro no login: Verifique suas credenciais.");
       return false;
     } finally {
       setLoading(false);
     }
   };
 
-  // 3. Função de Cadastro
   const register = async (name, email, password) => {
     setLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
 
-      const userData = { email, name, role: "client" };
+      await setDoc(doc(db, "users", firebaseUser.uid), {
+        uid: firebaseUser.uid,
+        name: name,
+        email: email,
+        role: email === ADMIN_EMAIL ? 'admin' : 'customer',
+        createdAt: new Date().toISOString()
+      });
 
-      localStorage.setItem("linaclyn_user", JSON.stringify(userData));
-
-      setUser(userData);
-      setIsAdmin(false);
       toast.success("Conta criada com sucesso!");
       return true;
     } catch (error) {
-      toast.error("Erro ao registrar. Tente novamente.");
+      toast.error("Erro ao registrar: " + error.message);
       return false;
     } finally {
       setLoading(false);
     }
   };
 
-  // 4. Função de Logout
-  const logout = () => {
-    localStorage.removeItem("linaclyn_user");
-    setUser(null);
-    setIsAdmin(false);
-    toast.info("Você saiu do sistema.");
+  const logout = async () => {
+    try {
+      await signOut(auth);
+      toast.info("Sessão encerrada.");
+    } catch (error) {
+      toast.error("Erro ao sair.");
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, register, loading, setLoading, isAdmin }}>
-      {children}
+    <AuthContext.Provider value={{ user, login, logout, register, loading, isAdmin }}>
+      {!loading && children}
     </AuthContext.Provider>
   );
 };

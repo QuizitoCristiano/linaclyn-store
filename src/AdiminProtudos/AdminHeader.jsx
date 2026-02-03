@@ -1,9 +1,14 @@
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { Menu, X, LogOut, Moon, Sun, Home, LayoutDashboard, Package, ShoppingCart, MessageSquare } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import { toast } from "sonner";
 import { useChat } from "../context/ChatContext";
+
+import {
+  Menu, X, LogOut, Moon, Sun, Home,
+  LayoutDashboard, Package, ShoppingCart,
+  MessageSquare, ReceiptText // <--- Adicione aqui
+} from "lucide-react";
 
 export default function AdminHeader({ onNavigate }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -31,6 +36,7 @@ export default function AdminHeader({ onNavigate }) {
     { name: "Produtos", page: "admin-products", icon: <Package size={18} /> },
     { name: "Pedidos", page: "admin-orders", icon: <ShoppingCart size={18} /> },
     { name: "Responder", page: "admin-messages", icon: <MessageSquare size={18} />, isChat: true },
+    { name: "Financeiro", page: "admin-finance", icon: <ReceiptText size={18} /> }, // <--- Adicione esta linha
   ];
 
   return (

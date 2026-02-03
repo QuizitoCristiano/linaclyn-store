@@ -5,6 +5,7 @@ import { Mail, Lock, User, ArrowRight, LockKeyholeOpen, ChevronLeft, X } from "l
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import { toast } from 'sonner';
 
+
 export default function AuthPage({ onLoginSuccess }) {
     const [view, setView] = useState('login');
     const [email, setEmail] = useState('');
@@ -67,20 +68,18 @@ export default function AuthPage({ onLoginSuccess }) {
 
         // 2. Validações exclusivas de Registro (Cadastro)
         if (view === 'register') {
-            // Checa se as senhas batem
             if (password !== confirmPassword) {
                 toast.error("As senhas não coincidem!");
                 return;
             }
 
-            // Checa a força da senha (Regra Forte)
-            const strongPassword = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-            if (!strongPassword.test(password)) {
-                toast.error("Senha fraca! Use: 8+ caracteres, Maiúscula, Minúscula, Número e Símbolo.");
+            // Regra: Mínimo 8 caracteres e pelo menos 1 número
+            const basicSecurity = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
+            if (!basicSecurity.test(password)) {
+                toast.error("Senha muito simples! Use 8 caracteres e inclua pelo menos um número.");
                 return;
             }
         }
-
         // 3. Tentativa de Autenticação
 
 
