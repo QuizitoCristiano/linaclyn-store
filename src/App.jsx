@@ -19,6 +19,8 @@ import AdminProdutos from "./AdiminProtudos/Produtos";
 import AdminPedidos from "./AdiminProtudos/Pedidos";
 import PaginaClientes from "./AdiminProtudos/Clientes";
 import { FloatingChat } from "./pages/FloatingChat";
+import AdminMensagens from "./AdiminProtudos/AdminMensagens";
+import { ChatProvider } from "./context/ChatContext";
 
 
 function AppContent() {
@@ -53,6 +55,8 @@ function AppContent() {
             {currentPage === "admin-products" && <AdminProdutos />}
             {currentPage === "admin-orders" && <AdminPedidos />}
             {currentPage === "admin-customers" && <PaginaClientes />}
+            {/* Aqui você pode criar a página de responder: */}
+            {currentPage === "admin-messages" && <AdminMensagens />}
           </main>
         </div>
       );
@@ -88,13 +92,14 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <ProductProvider>
-        <CartProvider>
-          <AppContent />
-          {/* Adicionamos 'richColors' para que o erro fique vermelho e o sucesso verde */}
-          <Toaster position="top-right" richColors closeButton />
-        </CartProvider>
-      </ProductProvider>
+      <ChatProvider>  {/* <--- Ele tem que envolver o AppContent */}
+        <ProductProvider>
+          <CartProvider>
+            <AppContent />
+            <Toaster position="top-right" richColors closeButton />
+          </CartProvider>
+        </ProductProvider>
+      </ChatProvider>
     </AuthProvider>
   );
 }
