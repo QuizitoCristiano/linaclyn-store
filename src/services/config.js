@@ -1,23 +1,26 @@
+console.log("Minha chave é:", import.meta.env.VITE_FIREBASE_API_KEY);
+
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
+// Agora o sistema busca os dados das variáveis de ambiente
+// Se estiver usando Vite, usa-se import.meta.env
+// Se estiver usando Next.js, usa-se process.env
 const firebaseConfig = {
-  apiKey: "AIzaSyBkCN8KA-vErrUuAZU-TFqYL7WmuyAsznk",
-  authDomain: "linaclyn-store.firebaseapp.com",
-  projectId: "linaclyn-store",
-  storageBucket: "linaclyn-store.firebasestorage.app",
-  messagingSenderId: "1067933587019",
-  appId: "1:1067933587019:web:795e5c99e7b8f11f0a5fce",
-  measurementId: "G-F901Y75NQQ",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
-// 1. Inicializa o Firebase apenas UMA vez
 const app = initializeApp(firebaseConfig);
 
-// 2. Exporta os serviços com 'export' para o resto do sistema
 export const analytics = getAnalytics(app);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
