@@ -1,5 +1,3 @@
-console.log("Minha chave é:", import.meta.env.VITE_FIREBASE_API_KEY);
-
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
