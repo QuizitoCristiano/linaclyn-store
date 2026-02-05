@@ -10,7 +10,7 @@ export function InteractiveShowcase() {
                     <div className="inline-block px-4 py-1 rounded-full bg-linaclyn-red/10 border border-linaclyn-red/20 text-linaclyn-red text-xs font-bold uppercase tracking-[0.2em]">
                         Experiência Imersiva
                     </div>
-                    <h2 className="text-4xl md:text-6xl font-black uppercase italic leading-none tracking-tighter text-white">
+                    <h2 className="text-4xl md:text-6xl font-black uppercase italic leading-none tracking-tighter ">
                         O Futuro da <br />
                         <span className="text-linaclyn-red underline decoration-white/10">Moda Digital</span>
                     </h2>

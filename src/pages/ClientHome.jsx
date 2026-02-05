@@ -2,6 +2,7 @@ import { SpecialOffersCarousel } from "@/components/ui/SpecialOffersCarousel";
 import { CategoriesSection } from "@/components/ui/CategoriesSection";
 import { CategoriesAndProducts } from "@/components/ui/CategoriesAndProducts";
 import { InteractiveShowcase } from "./InteractiveShowcase";
+import { VitrineProdutos } from "@/components/ui/VitrineProdutos";
 
 export default function ClientHome() {
   return (
@@ -35,6 +36,13 @@ export default function ClientHome() {
       <section className="container mx-auto pb-20">
         < InteractiveShowcase />
       </section>
+
+
+      <section className="container mx-auto pb-20">
+        < VitrineProdutos />
+      </section>
+
+
 
     </div>
   );

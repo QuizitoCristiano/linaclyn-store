@@ -1,105 +1,251 @@
-// import { useState } from "react";
-// import { Toaster } from "@/components/ui/sonner";
+import React, { useState, useMemo } from "react";
+import {
+    Plus, Search, MoreHorizontal, Filter,
+    ArrowUpDown, Package, Check, Edit2, Trash2, AlertTriangle, Loader2
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { ModalProduto } from "./ModalPro";
+import { useProducts } from "../context/ProductContext"; // Certifique-se que o caminho está correto
 
-// import { AuthProvider, useAuth } from "./context/AuthContext";
-// import { CartProvider } from "./context/CartContext";
-// import { ProductProvider } from "./context/ProductContext";
+export default function AdminProdutos() {
+    // PUXANDO DADOS DO FIREBASE VIA CONTEXTO
+    const { products, saveProduct, deleteProduct, loading } = useProducts();
 
-// import Header from "@/components/ui/Header";
-// import AdminHeader from "@/AdiminProtudos/AdminHeader";
-// import ClientHome from "@/pages/ClientHome";
-// import Sobre from "@/pages/Sobre";
-// import Servicos from "@/pages/Servicos";
-// import Contato from "@/pages/Contato";
-// import AuthPage from "./Cadastro/login&Cad";
-// import LoadingOverlay from "@/components/ui/LoadingOverlay"; // Importe seu overlay de carga
-// import Dashboard from "./AdiminProtudos/Dashboard";
-// import { Footer } from "./components/Footer";
-// import AdminProdutos from "./AdiminProtudos/Produtos";
-// import AdminPedidos from "./AdiminProtudos/Pedidos";
-// import PaginaClientes from "./AdiminProtudos/Clientes";
-// import { FloatingChat } from "./pages/FloatingChat";
-// import AdminMensagens from "./AdiminProtudos/AdminMensagens";
-// import { ChatProvider } from "./context/ChatContext";
+    const [busca, setBusca] = useState("");
+    const [ordemPreco, setOrdemPreco] = useState(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [filtroCategoria, setFiltroCategoria] = useState("TODOS");
+    const [produtoSelecionado, setProdutoSelecionado] = useState(null);
 
+    // Estados do Alerta de Exclusão
+    const [isAlertOpen, setIsAlertOpen] = useState(false);
+    const [produtoParaDeletar, setProdutoParaDeletar] = useState(null);
 
-// function AppContent() {
-//   const [currentPage, setCurrentPage] = useState("home");
-//   const { user, isAdmin, loading, logout } = useAuth();
+    // FUNÇÕES DE AÇÃO
+    const abrirConfirmacaoDeletar = (produto) => {
+        setProdutoParaDeletar(produto);
+        setIsAlertOpen(true);
+    };
 
-//   if (loading) return <LoadingOverlay />;
+    const executarExclusao = async () => {
+        if (produtoParaDeletar?.id) {
+            await deleteProduct(produtoParaDeletar.id);
+            setIsAlertOpen(false);
+            setProdutoParaDeletar(null);
+        }
+    };
 
+    // LÓGICA DE FILTRAGEM E ORDENAÇÃO
+    const produtosFiltrados = useMemo(() => {
+        let lista = [...products];
 
-//   if (!user) {
-//     return <AuthPage onLoginSuccess={() => setCurrentPage("home")} />;
-//   }
+        lista = lista.filter(p => {
+            const nomeMatch = p.nome?.toLowerCase().includes(busca.toLowerCase());
+            const categoriaMatch = filtroCategoria === "TODOS" || p.categoria === filtroCategoria;
+            return nomeMatch && categoriaMatch;
+        });
 
-//   const handlePageChange = (page) => {
-//     setCurrentPage(page);
-//     window.scrollTo(0, 0);
-//   };
+        if (ordemPreco === 'asc') lista.sort((a, b) => a.preco - b.preco);
+        if (ordemPreco === 'desc') lista.sort((a, b) => b.preco - a.preco);
 
-//   const renderContent = () => {
-//     // LÓGICA DE ADMIN: Se a página for "admin" ou começar com "admin-"
-//     // ... dentro de renderContent()
-//     if (currentPage === "admin" || currentPage.startsWith("admin-")) {
-//       return (
-//         // MUDANÇA AQUI: Trocamos 'bg-gray-50' por 'bg-background' e adicionamos 'text-foreground'
-//         <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
+        return lista;
+    }, [busca, products, ordemPreco, filtroCategoria]);
 
-//           {/* O Header agora vai conseguir "pintar" o fundo corretamente */}
-//           <AdminHeader onNavigate={handlePageChange} onLogout={logout} />
+    const categorias = ["TODOS", ...new Set(products.map(p => p.categoria || "SEM CATEGORIA"))];
 
-//           <main className="container mx-auto px-4 py-8">
-//             {currentPage === "admin" && <Dashboard />} {/* Certifique-se que o nome é Dashboard ou AdminDashboard conforme seu import */}
-//             {currentPage === "admin-products" && <AdminProdutos />}
-//             {currentPage === "admin-orders" && <AdminPedidos />}
-//             {currentPage === "admin-customers" && <PaginaClientes />}
-//             {/* Aqui você pode criar a página de responder: */}
-//             {currentPage === "admin-messages" && <AdminMensagens />}
-//           </main>
-//         </div>
-//       );
-//     }
+    // TELA DE CARREGAMENTO INICIAL
+    // if (loading) {
+    //     return (
+    //         <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
+    //             <Loader2 className="w-10 h-10 text-red-600 animate-spin" />
+    //             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground italic">
+    //                 Carregando Performance System...
+    //             </p>
+    //         </div>
+    //     );
+    // }
 
-//     // FLUXO NORMAL DO CLIENTE
-//     return (
-//       <>
-//         <Header
-//           currentPage={currentPage}
-//           onNavigate={handlePageChange}
-//           onAdminAccess={() => setCurrentPage("admin")}
-//           onLogout={logout}
-//         />
-//         <main className="container mx-auto px-0 sm:px-6 lg:px-8 py-8">
-//           {currentPage === "home" && <ClientHome />}
-//           {currentPage === "sobre" && <Sobre />}
-//           {currentPage === "servicos" && <Servicos />}
-//           {currentPage === "contato" && <Contato />}
-//         </main>
+    return (
+        <div className="min-h-screen bg-zinc-50 dark:bg-[#0c0c0c] text-zinc-900 dark:text-zinc-200 p-4 md:p-8 pt-20 md:pt-24 font-sans transition-colors duration-300 overflow-x-hidden">
+            <div className="max-w-7xl mx-auto space-y-6 md:space-y-8">
 
+                {/* HEADER */}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+                    <div>
+                        <h1 className="text-3xl md:text-5xl font-black uppercase italic tracking-tighter leading-none">
+                            GESTÃO DE <span className="text-red-600">PRODUTOS</span>
+                        </h1>
+                        <p className="text-zinc-400 dark:text-zinc-500 text-[9px] md:text-[10px] font-bold uppercase mt-3 tracking-[0.2em]">
+                            Linaclyn Performance Control • 2026
+                        </p>
+                    </div>
+                    <Button
+                        onClick={() => { setProdutoSelecionado(null); setIsModalOpen(true); }}
+                        className="w-full md:w-auto bg-red-600 hover:bg-red-700 text-white font-black rounded-xl h-14 px-10 italic shadow-lg shadow-red-600/20 border-none transition-transform active:scale-95"
+                    >
+                        <Plus className="w-6 h-6 mr-2 stroke-[4px]" /> NOVO PRODUTO
+                    </Button>
+                </div>
 
-//         {/* O CHAT SÓ APARECE PARA O CLIENTE (E SE NÃO FOR ADMIN) */}
-//         {!isAdmin && <FloatingChat userId={user.uid} />}
-//         <Footer />
-//       </>
-//     );
-//   };
+                {/* BUSCA E FILTROS */}
+                <div className="flex flex-col lg:flex-row gap-3 md:gap-4 items-center">
+                    <div className="relative w-full flex-1">
+                        <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400 dark:text-zinc-600" />
+                        <Input
+                            placeholder="BUSCAR PRODUTO PELO NOME..."
+                            value={busca}
+                            onChange={(e) => setBusca(e.target.value)}
+                            className="pl-14 h-14 md:h-16 rounded-2xl font-bold uppercase text-[11px] border-zinc-200 dark:border-zinc-800/50 bg-white dark:bg-[#161616] text-zinc-900 dark:text-white focus-visible:ring-1 focus-visible:ring-red-600/50 transition-all"
+                        />
+                    </div>
 
-//   return renderContent();
-// }
+                    <div className="flex w-full lg:w-auto gap-2 md:gap-4">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" className="flex-1 lg:flex-none h-14 md:h-16 px-6 md:px-8 rounded-2xl border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#161616] font-black gap-3 text-xs uppercase hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all text-zinc-500 dark:text-zinc-400">
+                                    <Filter className="w-4 h-4" /> {filtroCategoria}
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent className="bg-white dark:bg-[#1a1a1a] border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 min-w-[200px] rounded-xl shadow-2xl">
+                                <DropdownMenuLabel className="text-[10px] font-black uppercase p-3 opacity-50">Categorias</DropdownMenuLabel>
+                                <DropdownMenuSeparator className="bg-zinc-100 dark:bg-zinc-800" />
+                                {categorias.map((cat) => (
+                                    <DropdownMenuItem key={cat} onClick={() => setFiltroCategoria(cat)} className="p-3 font-bold text-[11px] uppercase flex justify-between focus:bg-red-600/10 cursor-pointer transition-colors">
+                                        {cat} {filtroCategoria === cat && <Check className="w-4 h-4 text-red-600" />}
+                                    </DropdownMenuItem>
+                                ))}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
 
-// export default function App() {
-//   return (
-//     <AuthProvider>
-//       <ChatProvider>  {/* <--- Ele tem que envolver o AppContent */}
-//         <ProductProvider>
-//           <CartProvider>
-//             <AppContent />
-//             <Toaster position="top-right" richColors closeButton />
-//           </CartProvider>
-//         </ProductProvider>
-//       </ChatProvider>
-//     </AuthProvider>
-//   );
-// }
+                        <Button
+                            onClick={() => setOrdemPreco(ordemPreco === 'asc' ? 'desc' : 'asc')}
+                            variant="outline"
+                            className={`flex-1 lg:flex-none h-14 md:h-16 px-6 md:px-8 rounded-2xl border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#161616] font-black gap-3 text-xs uppercase transition-all ${ordemPreco ? 'text-red-600 border-red-600/30' : 'text-zinc-500 dark:text-zinc-400'}`}
+                        >
+                            <ArrowUpDown className="w-4 h-4" /> {ordemPreco === 'asc' ? 'Menor Preço' : ordemPreco === 'desc' ? 'Maior Preço' : 'Preço'}
+                        </Button>
+                    </div>
+                </div>
+
+                {/* TABELA DE PRODUTOS */}
+                <div className="bg-white dark:bg-[#111111] border border-zinc-200 dark:border-zinc-800/40 rounded-[1.5rem] md:rounded-[2.5rem] overflow-hidden shadow-xl transition-all">
+                    <div className="overflow-x-auto scrollbar-hide">
+                        <table className="w-full text-left min-w-[900px]">
+                            <thead>
+                                <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600 border-b border-zinc-100 dark:border-zinc-800/30">
+                                    <th className="p-6 md:p-10">PRODUTO</th>
+                                    <th className="p-6 md:p-10">DESCRIÇÃO</th>
+                                    <th className="p-6 md:p-10">PREÇO</th>
+                                    <th className="p-6 md:p-10 text-center">ESTOQUE</th>
+                                    <th className="p-6 md:p-10 text-right">AÇÕES</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/20">
+                                {produtosFiltrados.map((p) => (
+                                    <tr key={p.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/10 transition-colors group">
+                                        <td className="p-6 md:p-10 flex items-center gap-4 md:gap-6">
+                                            <div className="w-10 h-10 md:w-14 md:h-14 bg-zinc-100 dark:bg-zinc-900/50 rounded-xl md:rounded-2xl flex items-center justify-center border border-zinc-200 dark:border-zinc-800/50 group-hover:border-red-600/30 transition-all overflow-hidden">
+                                                {p.img ? (
+                                                    <img src={p.img} alt={p.nome} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <Package className="w-5 h-5 md:w-7 md:h-7 text-red-600" />
+                                                )}
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="font-black text-xs md:text-sm uppercase italic tracking-tight text-zinc-700 dark:text-zinc-200">
+                                                    {p.nome}
+                                                </span>
+                                                <span className="text-[8px] font-bold text-red-600/60 uppercase">{p.categoria}</span>
+                                            </div>
+                                        </td>
+
+                                        <td className="p-6 md:p-10 text-[10px] md:text-[11px] font-medium text-zinc-400 dark:text-zinc-500 uppercase italic max-w-[200px] truncate">
+                                            {p.descricao || "Sem especificações..."}
+                                        </td>
+
+                                        <td className="p-6 md:p-10 font-black text-zinc-800 dark:text-zinc-200 text-xs md:text-sm italic">
+                                            R$ {parseFloat(p.preco || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        </td>
+
+                                        <td className="p-6 md:p-10 text-center">
+                                            <span className={`text-[9px] md:text-[10px] font-black px-3 py-1 rounded-full uppercase border ${p.estoque > 0 ? 'bg-green-500/5 text-green-500 border-green-500/20' : 'bg-red-600/5 text-red-600 border-red-600/20'}`}>
+                                                {p.estoque} UN
+                                            </span>
+                                        </td>
+
+                                        <td className="p-6 md:p-10 text-right">
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <button className="text-zinc-300 dark:text-zinc-700 hover:text-zinc-900 dark:hover:text-white transition-colors p-2">
+                                                        <MoreHorizontal className="w-6 h-6" />
+                                                    </button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end" className="bg-white dark:bg-[#1a1a1a] border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl min-w-[150px]">
+                                                    <DropdownMenuLabel className="text-[10px] font-black uppercase p-3 opacity-50 tracking-widest">Ações</DropdownMenuLabel>
+                                                    <DropdownMenuSeparator className="bg-zinc-100 dark:bg-zinc-800" />
+                                                    <DropdownMenuItem onClick={() => { setProdutoSelecionado(p); setIsModalOpen(true); }} className="p-3 font-bold text-[11px] uppercase flex gap-3 focus:bg-red-600/10 focus:text-red-600 cursor-pointer">
+                                                        <Edit2 className="w-4 h-4" /> Editar
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => abrirConfirmacaoDeletar(p)} className="p-3 font-bold text-[11px] uppercase flex gap-3 text-red-600 focus:bg-red-600/10 cursor-pointer">
+                                                        <Trash2 className="w-4 h-4" /> Excluir
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        {produtosFiltrados.length === 0 && (
+                            <div className="p-20 text-center flex flex-col items-center gap-3">
+                                <Package className="w-12 h-12 text-zinc-200 dark:text-zinc-800" />
+                                <p className="font-black text-zinc-400 uppercase italic text-xs">Nenhum produto em estoque.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO */}
+            {isAlertOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsAlertOpen(false)} />
+                    <div className="relative bg-white dark:bg-[#0f0f0f] border border-zinc-200 dark:border-zinc-800 w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl animate-in zoom-in duration-200">
+                        <div className="flex flex-col items-center text-center">
+                            <div className="w-16 h-16 bg-red-600/10 rounded-full flex items-center justify-center mb-6 border border-red-600/20">
+                                <AlertTriangle className="w-8 h-8 text-red-600" />
+                            </div>
+                            <h2 className="text-xl font-black uppercase italic text-zinc-900 dark:text-white leading-none">Atenção!</h2>
+                            <p className="text-zinc-500 text-[10px] font-bold uppercase mt-3 tracking-widest leading-relaxed">
+                                Excluir permanentemente <br /> <span className="text-red-600">"{produtoParaDeletar?.nome}"</span>?
+                            </p>
+                            <div className="flex w-full gap-3 mt-8">
+                                <button onClick={() => setIsAlertOpen(false)} className="flex-1 h-12 rounded-xl bg-muted text-muted-foreground font-black uppercase text-[10px] hover:bg-zinc-200 transition-all">Voltar</button>
+                                <button onClick={executarExclusao} className="flex-1 h-12 rounded-xl bg-red-600 text-white font-black uppercase text-[10px] hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all">Excluir</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL DE CADASTRO/EDIÇÃO */}
+            <ModalProduto
+                isOpen={isModalOpen}
+                setIsOpen={setIsModalOpen}
+                produtoEdicao={produtoSelecionado}
+                aoSalvar={async (dados) => {
+                    await saveProduct(dados);
+                }}
+            />
+        </div>
+    );
+}

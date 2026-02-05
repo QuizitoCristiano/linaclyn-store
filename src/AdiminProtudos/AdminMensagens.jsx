@@ -27,22 +27,27 @@ export default function AdminMensagens() {
         }
     }, [selectedUserId, allChats]);
 
-    // Lista de contatos formatada pegando do Firebase
+
+    // Lista de contatos formatada
     const contactList = Object.keys(allChats).map(uid => {
         const history = allChats[uid];
         const lastMessage = history[history.length - 1];
 
-        // Busca o clientName salvo no documento ou no histórico de mensagens
-        const clientName = history.find(m => m.clientName)?.clientName || "Cliente";
+        // 1. Procura o nome dentro de qualquer mensagem do histórico (senderName)
+        // 2. Se for o Ricardo (pelo UID dele), o sistema vai achar o nome que ele usou ao logar
+        const clientName = history.find(m => m.senderName)?.senderName ||
+            history.find(m => m.clientName)?.clientName ||
+            (uid.startsWith('lead_') ? "Visitante" : "Cliente");
 
         return {
             uid: uid,
-            name: clientName,
+            name: clientName, // Aqui agora vai aparecer "Ricardo" corretamente
             lastMsg: lastMessage?.type === 'image' ? '📷 Foto' : lastMessage?.type === 'audio' ? '🎤 Áudio' : lastMessage?.text,
             time: lastMessage?.timestamp || "",
             isLead: uid.startsWith('lead_'),
         };
     }).filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
 
     // Pega os dados do contato selecionado para exibir no cabeçalho
     const selectedContact = contactList.find(c => c.uid === selectedUserId);
@@ -52,16 +57,18 @@ export default function AdminMensagens() {
 
         const payload = {
             text: reply,
-            sender: 'admin',
-            type: 'text'
+            sender: 'admin', // Identificador essencial
+            type: 'text',
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            isAdmin: true // Adicione isso para facilitar a regra de estilo no cliente
         };
 
         if (editingId) {
-            sendMessage(selectedUserId, { ...payload, id: editingId, isEdited: true }, "Suporte LinaClyn");
+            // Use "LinaClyn Suporte" para bater com o cabeçalho que você já tem
+            sendMessage(selectedUserId, { ...payload, id: editingId, isEdited: true }, "LinaClyn Suporte");
             setEditingId(null);
         } else {
-            // O nome enviado aqui é como o Admin aparece para o cliente
-            sendMessage(selectedUserId, payload, "Suporte LinaClyn");
+            sendMessage(selectedUserId, payload, "LinaClyn Suporte");
         }
         setReply('');
     };

@@ -104,9 +104,10 @@ export default function AdminFinanceiro() {
                     <input type="text" placeholder="Descrição (Ex: Aluguel)" className="p-4 bg-secondary rounded-2xl outline-none border border-transparent focus:border-linaclyn-red transition-all" value={desc} onChange={e => setDesc(e.target.value)} />
                     <input type="number" placeholder="Valor (R$)" className="p-4 bg-secondary rounded-2xl outline-none" value={val} onChange={e => setVal(e.target.value)} />
                     <select className="p-4 bg-secondary rounded-2xl outline-none" value={cat} onChange={e => setCat(e.target.value)}>
-                        <option value="Estoque">Estoque</option>
-                        <option value="Marketing">Marketing</option>
-                        <option value="Infraestrutura">Infraestrutura</option>
+                        <option value="Estoque">Estoque (Produtos)</option>
+                        <option value="Marketing">Marketing (Ads/Leads)</option>
+                        <option value="Servidores">Firebase/Hospedagem</option>
+                        <option value="Retirada">Pro-labore/Pessoal</option>
                         <option value="Outros">Outros</option>
                     </select>
                     <button type="submit" className="bg-linaclyn-red text-white font-black rounded-2xl hover:opacity-90 transition-all uppercase">Lançar</button>

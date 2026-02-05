@@ -18,12 +18,22 @@ export function FloatingChat() {
     const [leadData, setLeadData] = useState({ nome: '', whatsapp: '' });
     const [hasIdentified, setHasIdentified] = useState(false);
 
-    // 1. DEFINIÇÃO DO ID ÚNICO (Essencial para o espelhamento)
-    const userId = user ? user.uid : (hasIdentified ? `lead_${leadData.whatsapp.replace(/\D/g, '')}` : null);
+    const handleLogoutChat = () => {
+        localStorage.removeItem('chat_user_id');
+        localStorage.removeItem('chat_user_name');
+        setHasIdentified(false);
+        setLeadData({ nome: '', whatsapp: '' });
+        toast.success("Sessão encerrada.");
+    };
 
-    // 2. BUSCA O HISTÓRICO REAL DO FIREBASE
-    // Se não houver histórico ainda, mostra a mensagem de boas-vindas padrão
-    const chatHistory = (userId && allChats[userId] && allChats[userId].length > 0)
+    // 1. DEFINIÇÃO DO ID ÚNICO (Simplificada e Segura)
+    // Prioridade: 1º UID do Firebase (se logado), 2º ID de Lead (se identificado)
+    const savedId = localStorage.getItem('chat_user_id');
+    const userId = user?.uid || savedId || (hasIdentified ? `lead_${leadData.whatsapp.replace(/\D/g, '')}` : null);
+
+    //2. BUSCA O HISTÓRICO REAL DO FIREBASE
+    //Se não houver histórico ainda, mostra a mensagem de boas - vindas padrão
+    const chatHistory = (userId && allChats[userId])
         ? allChats[userId]
         : [{
             id: 'welcome',
@@ -33,39 +43,53 @@ export function FloatingChat() {
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }];
 
+
+
     const fileInputRef = useRef(null);
     const mediaRecorder = useRef(null);
     const audioChunks = useRef([]);
     const scrollRef = useRef(null);
 
     // Auto-scroll sempre que o chatHistory mudar (mensagens novas do admin ou do cliente)
+    // Adicione este useEffect para rastrear o que está chegando
     useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+        if (userId) {
+            console.log("Histórico atual para o usuário", userId, ":", allChats[userId]);
         }
-    }, [chatHistory, isOpen]);
+    }, [allChats, userId]);
+
 
     const handleStartChat = () => {
-        if (leadData.nome.trim().length < 3) {
-            toast.error("Por favor, digite seu nome completo.");
+        if (leadData.nome.trim().length < 3 || leadData.whatsapp.length < 10) {
+            toast.error("Preencha os dados corretamente.");
             return;
         }
-        if (leadData.whatsapp.replace(/\D/g, '').length < 10) {
-            toast.error("Digite um WhatsApp válido com DDD.");
-            return;
-        }
+        const idGerado = `lead_${leadData.whatsapp.replace(/\D/g, '')}`;
+
+        // Salva no navegador para não perder ao dar F5
+        localStorage.setItem('chat_user_id', idGerado);
+        localStorage.setItem('chat_user_name', leadData.nome);
+
         setHasIdentified(true);
         toast.success(`Bem-vindo, ${leadData.nome}!`);
     };
 
+
+    // 3. FUNÇÃO DE ENVIAR (Ajustada para o "Efeito WhatsApp")
     const handleSend = () => {
         if (!message.trim() || !userId) return;
-        const currentUserName = user?.displayName || leadData.nome;
+
+        const currentUserName = user?.displayName || leadData.nome || localStorage.getItem('chat_user_name') || "Visitante";
+        // MELHORIA: Se o usuário é o DONO deste chat, ele é SEMPRE 'client' aqui na FloatingChat
+        // O Admin só será 'admin' quando responder pelo PAINEL ADMIN.
+        const senderRole = 'client';
 
         const payload = {
             text: message,
-            sender: 'client', // Identifica para o Admin que esta é uma mensagem do cliente
-            type: 'text'
+            sender: senderRole,
+            senderName: currentUserName,
+            type: 'text',
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         };
 
         if (editingId) {
@@ -77,49 +101,65 @@ export function FloatingChat() {
         setMessage('');
     };
 
+
+
+
     const handleImageUpload = (e) => {
         const file = e.target.files[0];
         if (file && file.size <= 5 * 1024 * 1024) {
             const reader = new FileReader();
             reader.readAsDataURL(file);
             reader.onloadend = () => {
-                const name = user?.displayName || leadData.nome;
+                // GARANTIA: Pega o nome de qualquer lugar disponível
+                const currentName = user?.displayName || leadData.nome || localStorage.getItem('chat_user_name') || "Visitante";
+
                 sendMessage(userId, {
                     image: reader.result,
                     sender: 'client',
-                    type: 'image'
-                }, name);
+                    type: 'image',
+                    text: "📷 Imagem" // Adicione um texto padrão para aparecer na lista de chats do Admin
+                }, currentName);
             };
         } else if (file) {
             toast.error("A imagem deve ter no máximo 5MB.");
         }
     };
 
+
     const startRecording = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaRecorder.current = new MediaRecorder(stream);
             audioChunks.current = [];
+
             mediaRecorder.current.ondataavailable = (e) => audioChunks.current.push(e.data);
+
             mediaRecorder.current.onstop = () => {
                 const audioBlob = new Blob(audioChunks.current, { type: 'audio/webm' });
                 const reader = new FileReader();
                 reader.readAsDataURL(audioBlob);
+
                 reader.onloadend = () => {
-                    const name = user?.displayName || leadData.nome;
+                    // MUDANÇA AQUI: Garantia de nome e texto para o Admin ver
+                    const currentName = user?.displayName || leadData.nome || localStorage.getItem('chat_user_name') || "Cliente";
+
                     sendMessage(userId, {
                         audio: reader.result,
+                        text: "🎤 Áudio", // Importante para o Admin saber o que é na lista de chats
                         sender: 'client',
                         type: 'audio'
-                    }, name);
+                    }, currentName);
                 };
             };
+
             mediaRecorder.current.start();
             setIsRecording(true);
         } catch (err) {
+            console.error("Erro ao acessar microfone:", err);
             toast.error("Microfone não autorizado.");
         }
     };
+
 
     const stopRecording = () => {
         if (mediaRecorder.current) {
@@ -146,6 +186,9 @@ export function FloatingChat() {
                                 <p className="text-[10px] text-white/80">Online agora</p>
                             </div>
                         </div>
+                        <button onClick={handleLogoutChat} title="Sair do chat" className="bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors mr-1">
+                            <Trash2 size={16} />
+                        </button>
                         <button onClick={() => setIsOpen(false)} className="bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors">
                             <X size={18} />
                         </button>

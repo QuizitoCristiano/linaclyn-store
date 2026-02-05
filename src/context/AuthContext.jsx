@@ -71,9 +71,11 @@ export const AuthProvider = ({ children }) => {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
 
+
       await setDoc(doc(db, "users", firebaseUser.uid), {
         uid: firebaseUser.uid,
-        name: name,
+        name: name, // O que você já tem
+        displayName: name, // Adicione isso para o Auth
         email: email,
         role: email === ADMIN_EMAIL ? 'admin' : 'customer',
         createdAt: new Date().toISOString()
