@@ -1,32 +1,44 @@
-// Mock data para produtos
- import Quizito from '../imagens/quizito.png'
-
 export const products = [
   {
     id: 1,
-    name: "Rosa Vermelha",
-    description: "Buquê de rosas vermelhas perfeito para ocasiões especiais",
-    price: 45.90,
-    image: "https://via.placeholder.com/300x300?text=Rosa",
-    category: "flowers",
-    rating: 4.8
+    name: "KIT PERFORMANCE BLACK EDITION",
+    price: "349,00",
+    category: "ACESSÓRIOS",
+    image: "/caminho/kit.jpg",
   },
   {
     id: 2,
-    name: "Buquê de Girassóis",
-    description: "Buquê vibrante de girassóis para alegrar qualquer ambiente",
-    price: 35.50,
-    image: "https://via.placeholder.com/300x300?text=Girassol",
-    category: "bouquets",
-    rating: 4.6
+    name: "TÊNIS SPORT ULTRA SPEED",
+    price: "189,90",
+    category: "SPORT & FIT",
+    image: "/caminho/tenis.jpg",
   },
   {
     id: 3,
-    name: "Cacto Decorativo",
-    description: "Cacto pequeno ideal para decoração de interiores",
-    price: 25.00,
-    image: "https://via.placeholder.com/300x300?text=Cacto",
-    category: "cactus",
-    rating: 4.4
-  }
+    name: "SMARTWATCH LINA PRO",
+    price: "728,89",
+    category: "TECNOLOGIA",
+    image: "/caminho/watch.jpg",
+  },
+  {
+    id: 4,
+    name: "MOCHILA RED TECH",
+    price: "35,36",
+    category: "ESTILO & MODA",
+    image: "/caminho/mochila.jpg",
+  },
+  {
+    id: 5,
+    name: "FONE NAVY HEADPHONES",
+    price: "728,83",
+    category: "TECNOLOGIA",
+    image: "/caminho/fone.jpg",
+  },
+  {
+    id: 6,
+    name: "SAPATO ESCRITÓRIO PREMIUM",
+    price: "189,90",
+    category: "ESTILO & MODA",
+    image: "/caminho/sapato.jpg",
+  },
 ];

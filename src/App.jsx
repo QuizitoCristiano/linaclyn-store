@@ -3,9 +3,9 @@ import { Toaster } from "@/components/ui/sonner";
 
 // Contextos
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import { CartProvider } from "./context/CartContext";
+import { CartProvider, useCart } from "./context/CartContext"; // ✅ Adicionado useCart
 import { ProductProvider } from "./context/ProductContext";
-import { ChatProvider } from "./context/ChatContext"; // ✅ Contexto de Chat
+import { ChatProvider } from "./context/ChatContext";
 
 // Componentes UI e Layout
 import Header from "@/components/ui/Header";
@@ -28,21 +28,26 @@ import AdminPedidos from "./AdiminProtudos/Pedidos";
 import PaginaClientes from "./AdiminProtudos/Clientes";
 import AdminMensagens from "./AdiminProtudos/AdminMensagens";
 import AdminFinanceiro from "./AdiminProtudos/AdminFinanceiro";
-// import AdminFinanceiro from "./AdiminProtudos/Financeiro"; // ✅ Certifique-se de importar se for usar!
+import CheckoutRouter from "./Cadastro/CheckoutRouter";
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState("home");
   const { user, isAdmin, loading, logout } = useAuth();
 
+  // ✅ Puxando o estado do Checkout do Contexto de Carrinho
+  const { isCheckingOut, setIsCheckingOut } = useCart();
+
   if (loading) return <LoadingOverlay />;
 
+  // Função para navegar e resetar estados se necessário
   const handlePageChange = (page) => {
+    setIsCheckingOut(false); // Cancela o checkout se o usuário navegar para outra página pelo menu
     setCurrentPage(page);
     window.scrollTo(0, 0);
   };
 
   const renderContent = () => {
-    // 1. LÓGICA DE LOGIN
+    // 1. LÓGICA DE LOGIN/CADASTRO
     if (currentPage === "auth") {
       return <AuthPage onLoginSuccess={() => setCurrentPage("home")} />;
     }
@@ -68,7 +73,19 @@ function AppContent() {
       );
     }
 
-    // 3. FLUXO NORMAL DO CLIENTE
+    // 3. NOVO: LÓGICA DE CHECKOUT (Foco total na compra)
+    if (isCheckingOut) {
+      return (
+        <CheckoutRouter onNavigate={(dest) => {
+          if (dest === 'home') {
+            setIsCheckingOut(false);
+            setCurrentPage('home');
+          }
+        }} />
+      );
+    }
+
+    // 4. FLUXO NORMAL DO CLIENTE
     return (
       <>
         <Header
@@ -79,6 +96,7 @@ function AppContent() {
           onLogout={logout}
           user={user}
         />
+
         <main className="container mx-auto px-0 sm:px-6 lg:px-8 py-8">
           {currentPage === "home" && <ClientHome />}
           {currentPage === "sobre" && <Sobre />}
@@ -86,8 +104,9 @@ function AppContent() {
           {currentPage === "contato" && <Contato />}
         </main>
 
-        {/* FloatingChat visível apenas para clientes, sincronizado via Firebase */}
+        {/* FloatingChat visível apenas para clientes */}
         {!isAdmin && <FloatingChat />}
+
         <Footer />
       </>
     );
@@ -96,6 +115,7 @@ function AppContent() {
   return renderContent();
 }
 
+// COMPONENTE PAI (Providers)
 export default function App() {
   return (
     <AuthProvider>

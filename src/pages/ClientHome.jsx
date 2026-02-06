@@ -1,13 +1,30 @@
+import React, { useState } from 'react'; // Adicionado o useState aqui para não dar erro
 import { SpecialOffersCarousel } from "@/components/ui/SpecialOffersCarousel";
 import { CategoriesSection } from "@/components/ui/CategoriesSection";
 import { CategoriesAndProducts } from "@/components/ui/CategoriesAndProducts";
 import { InteractiveShowcase } from "./InteractiveShowcase";
 import { VitrineProdutos } from "@/components/ui/VitrineProdutos";
+import { PaginaVitrineDinamica } from "@/components/ui/PaginaVitrineDinamica";
+import { ManifestoLinaClyn } from "@/components/ui/ManifestoLinaClyn";
+import SuccessModalIem from "@/Cadastro/SuccessModal";
 
 export default function ClientHome() {
+
+  const [showTeste, setShowTeste] = useState(true); // Controla a exibição do modal
+
+  // Dados de teste para o modal exibir as informações corretamente
+  const mockOrder = {
+    orderId: "LINA-TESTE-2026",
+    items: [
+      { name: "Camiseta LinaClyn Pro", quantity: 2, price: 89.90 },
+      { name: "Boné Performance", quantity: 1, price: 55.00 }
+    ],
+    total: 234.80
+  };
+
   return (
     <div className="space-y-6 bg-background min-h-screen">
-      {/* Hero Section - Onde o impacto acontece */}
+      {/* Hero Section */}
       <section className="text-center py-16 px-4 animate-fade-in-up">
         <h1 className="text-5xl md:text-7xl font-black tracking-tighter mb-6">
           Domine sua <span className="text-linaclyn-red">Performance.</span>
@@ -18,32 +35,38 @@ export default function ClientHome() {
         </p>
       </section>
 
-      {/* Carrossel de Ofertas */}
+      {/* Outras Seções */}
       <section className="container mx-auto">
         <SpecialOffersCarousel />
       </section>
 
-      {/* Seção de Categorias */}
+      <section className="container mx-auto">
+        <ManifestoLinaClyn />
+      </section>
+
       <section className="container mx-auto pb-20">
-        <CategoriesSection />
+        <PaginaVitrineDinamica />
       </section>
 
       <section className="container mx-auto pb-20">
         <CategoriesAndProducts />
       </section>
 
-
       <section className="container mx-auto pb-20">
-        < InteractiveShowcase />
+        <VitrineProdutos />
       </section>
 
-
       <section className="container mx-auto pb-20">
-        < VitrineProdutos />
+        <InteractiveShowcase />
       </section>
 
-
-
+      {/* Renderização condicional do Modal de Sucesso */}
+      {/* {showTeste && (
+        <SuccessModalIem
+          orderData={mockOrder}
+          onHighlightClose={() => setShowTeste(false)}
+        />
+      )} */}
     </div>
   );
 }
