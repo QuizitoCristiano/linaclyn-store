@@ -9,19 +9,37 @@ export default function SuccessModalIem({ orderData, onHighlightClose }) {
         const animationEnd = Date.now() + duration;
         const colors = ['#e31b23', '#ffffff', '#000000'];
 
+        // --- EXPLOSÃO INICIAL AGRESSIVA ---
+        confetti({
+            particleCount: 150, // Bastante confete de uma vez
+            spread: 70,         // Bem espalhado
+            origin: { y: 0.6 }, // Começa um pouco abaixo do meio da tela
+            colors: colors,
+            zIndex: 200         // Garante que fique acima de tudo
+        });
+
+        // --- CHUVA LATERAL CONTÍNUA (Seu código original) ---
         const frame = () => {
             confetti({
-                particleCount: 3, angle: 60, spread: 55,
-                origin: { x: 0 }, colors: colors
+                particleCount: 3,
+                angle: 60,
+                spread: 55,
+                origin: { x: 0 },
+                colors: colors
             });
             confetti({
-                particleCount: 3, angle: 120, spread: 55,
-                origin: { x: 1 }, colors: colors
+                particleCount: 3,
+                angle: 120,
+                spread: 55,
+                origin: { x: 1 },
+                colors: colors
             });
+
             if (Date.now() < animationEnd) {
                 requestAnimationFrame(frame);
             }
         };
+
         frame();
     }, []);
 

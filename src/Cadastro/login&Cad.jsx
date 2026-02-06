@@ -5,7 +5,6 @@ import { Mail, Lock, User, ArrowRight, LockKeyholeOpen, ChevronLeft, X } from "l
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import { toast } from 'sonner';
 
-
 export default function AuthPage({ onLoginSuccess }) {
     const [view, setView] = useState('login');
     const [email, setEmail] = useState('');
@@ -25,7 +24,7 @@ export default function AuthPage({ onLoginSuccess }) {
     const [isLocked, setIsLocked] = useState(false);
     const [lockTimer, setLockTimer] = useState(0);
 
-    const { login, register, loading, setLoading } = useAuth();
+    const { login, register, loading, setLoading, resetPassword } = useAuth();
 
     // Lógica do Cronômetro de Bloqueio
     useEffect(() => {
@@ -45,20 +44,38 @@ export default function AuthPage({ onLoginSuccess }) {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
+        // LÓGICA REAL DE RECUPERAÇÃO DE SENHA
+
+        // 1. LÓGICA REAL DE RECUPERAÇÃO DE SENHA (Mantenha esta)
         if (view === 'forgot-password') {
+            if (!email.includes("@")) {
+                toast.error("Insira um e-mail válido!");
+                return;
+            }
+
             setLoading(true);
-            // Simulação de envio de e-mail
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            toast.success("E-mail de recuperação enviado!");
-            setView('login');
-            setLoading(false);
+            try {
+                const sucesso = await resetPassword(email);
+                if (sucesso) {
+                    toast.success("E-mail de recuperação enviado! Verifique sua caixa de entrada.");
+                    setView('login');
+                } else {
+                    toast.error("Erro ao enviar e-mail. Verifique se o endereço está correto.");
+                }
+            } catch (error) {
+                toast.error("Ocorreu um erro inesperado.");
+            } finally {
+                setLoading(false);
+            }
             return;
         }
+
 
         if (isLocked) {
             toast.error(`Acesso bloqueado! Aguarde ${lockTimer}s.`);
             return;
         }
+
 
         // 1. Validação de E-mail
         if (!email.includes("@")) {

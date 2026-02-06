@@ -4,7 +4,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
-  onAuthStateChanged
+  onAuthStateChanged,
+  sendPasswordResetEmail
 } from "firebase/auth";
 import { auth, db } from "../services/config";
 import { doc, setDoc, getDoc } from "firebase/firestore"; // Adicionei o getDoc aqui!
@@ -15,6 +16,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+
 
   const ADMIN_EMAIL = "quizitocristiano10@gmail.com";
 
@@ -51,6 +53,20 @@ export const AuthProvider = ({ children }) => {
     return () => unsubscribe();
   }, []);
 
+  const resetPassword = async (email) => {
+    try {
+      const actionCodeSettings = {
+        // Coloque a URL oficial do seu site aqui (onde o modal de login abre)
+        url: window.location.origin,
+        handleCodeInApp: true,
+      };
+      await sendPasswordResetEmail(auth, email, actionCodeSettings);
+      return true;
+    } catch (error) {
+      console.error("Erro ao resetar senha:", error);
+      return false;
+    }
+  };
   const login = async (email, password) => {
     setLoading(true);
     try {
@@ -101,7 +117,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, register, loading, isAdmin }}>
+    <AuthContext.Provider value={{ user, login, logout, register, loading, isAdmin, resetPassword, }}>
       {!loading && children}
     </AuthContext.Provider>
   );
