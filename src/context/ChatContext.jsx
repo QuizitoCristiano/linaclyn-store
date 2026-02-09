@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { db } from "../services/config";
+import { auth, db } from "../services/config";
 import {
     collection,
     doc,
@@ -14,53 +14,66 @@ import {
 const ChatContext = createContext();
 
 export function ChatProvider({ children }) {
-    // allChats armazenará todos os documentos da coleção 'chats'
     const [allChats, setAllChats] = useState({});
 
-    // --- 1. ESCUTA EM TEMPO REAL ---
-    // Este useEffect garante que qualquer mudança no banco apareça instantaneamente para todos
-
     useEffect(() => {
-        // Escuta a coleção inteira para capturar mudanças em qualquer chat
-        const q = query(collection(db, "chats"));
+        const unsubscribeAuth = auth.onAuthStateChanged((user) => {
+            const isAdmin = user?.email === 'quizitocristiano10@gmail.com';
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const chatsData = {};
-            snapshot.forEach((doc) => {
-                console.log("Documento recebido:", doc.id); // Verifique se o ID que chega é o que o cliente usa
-                chatsData[doc.id] = doc.data().messages || [];
-            });
-            setAllChats(chatsData);
+            if (isAdmin) {
+                const q = query(collection(db, "chats"));
+                return onSnapshot(q, (snapshot) => {
+                    const chatsData = {};
+                    snapshot.forEach((doc) => {
+                        chatsData[doc.id] = { id: doc.id, ...doc.data() };
+                    });
+                    setAllChats(chatsData); // Admin recebe o mapa de todos os chats
+                });
+            } else {
+                const leadId = localStorage.getItem('chat_user_id');
+                const activeId = user?.uid || leadId;
+
+                if (activeId) {
+                    const docRef = doc(db, "chats", activeId);
+                    return onSnapshot(docRef, (snapshot) => {
+                        if (snapshot.exists()) {
+                            // IMPORTANTE: Mantém o que já tinha e adiciona o novo/atualizado
+                            setAllChats(prev => ({ ...prev, [activeId]: snapshot.data() }));
+                        }
+                    });
+                }
+            }
         });
 
-        return () => unsubscribe();
+        return () => unsubscribeAuth();
     }, []);
 
-
-
-
-    // --- 2. ENVIAR MENSAGEM (ESPELHADA) ---
-    /**
-     * @param {string} userId - O ID do cliente (essencial para que ambos vejam a mesma conversa)
-     * @param {object} messageData - Conteúdo (text, type, sender, image, audio)
-     * @param {string} clientName - Nome para exibição no cabeçalho do Admin
-     */
-
+    // --- ENVIAR MENSAGEM ---
     const sendMessage = async (chatId, messageData, displayName) => {
-        if (!chatId) {
-            console.error("Erro: chatId não fornecido!");
-            return;
+        if (!chatId) return;
+
+        // Se a mensagem já tiver um ID e for uma edição, redireciona para a função de editar
+        if (messageData.id && messageData.isEdited) {
+            return editMessage(chatId, messageData.id, messageData.text);
         }
 
-        // Garante que o nome nunca seja uma string vazia no Firestore
-        const validName = (displayName && displayName.trim() !== "") ? displayName : "Visitante";
+        let finalName = "Visitante";
+        if (displayName && displayName.trim() !== "") {
+            finalName = displayName;
+        } else if (auth.currentUser?.displayName) {
+            finalName = auth.currentUser.displayName;
+        } else {
+            const savedName = localStorage.getItem('chat_user_name');
+            if (savedName) finalName = savedName;
+        }
+
         const chatRef = doc(db, "chats", chatId);
 
         const newMessage = {
             id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             text: messageData.text || "",
-            sender: messageData.sender, // 'admin' ou 'client'
-            senderName: messageData.sender === 'admin' ? "Suporte LinaClyn" : validName,
+            sender: messageData.sender,
+            senderName: messageData.sender === 'admin' ? "Suporte LinaClyn" : finalName,
             type: messageData.type || 'text',
             image: messageData.image || null,
             audio: messageData.audio || null,
@@ -72,24 +85,47 @@ export function ChatProvider({ children }) {
             await updateDoc(chatRef, {
                 messages: arrayUnion(newMessage),
                 lastUpdate: serverTimestamp(),
-                clientName: validName, // Atualiza para não ficar vazio
+                clientName: finalName,
                 userId: chatId
             });
         } catch (error) {
-            // Se o documento não existir (primeira mensagem), cria ele completo
             await setDoc(chatRef, {
                 messages: [newMessage],
-                clientName: validName,
+                clientName: finalName,
                 userId: chatId,
                 lastUpdate: serverTimestamp()
             });
         }
     };
 
+    // --- EDITAR MENSAGEM (Onde a mágica acontece) ---
+    const editMessage = async (userId, messageId, newText) => {
+        const chatData = allChats[userId];
+        if (!chatData) return;
 
-    // --- 3. DELETAR MENSAGEM ---
+        // Criamos uma nova lista de mensagens alterando apenas a que tem o ID correto
+        const updatedMessages = chatData.messages.map(msg => {
+            if (msg.id === messageId) {
+                return { ...msg, text: newText, isEdited: true };
+            }
+            return msg;
+        });
+
+        const chatRef = doc(db, "chats", userId);
+        try {
+            await updateDoc(chatRef, {
+                messages: updatedMessages,
+                lastUpdate: serverTimestamp()
+            });
+        } catch (error) {
+            console.error("Erro ao editar mensagem:", error);
+        }
+    };
+
+    // --- DELETAR MENSAGEM ---
     const deleteMessage = async (userId, messageId) => {
-        const currentMessages = allChats[userId] || [];
+        const chatData = allChats[userId];
+        const currentMessages = chatData?.messages || [];
         const updatedMessages = currentMessages.filter(m => m.id !== messageId);
 
         const chatRef = doc(db, "chats", userId);
@@ -101,7 +137,7 @@ export function ChatProvider({ children }) {
     };
 
     return (
-        <ChatContext.Provider value={{ allChats, sendMessage, deleteMessage }}>
+        <ChatContext.Provider value={{ allChats, sendMessage, deleteMessage, editMessage }}>
             {children}
         </ChatContext.Provider>
     );

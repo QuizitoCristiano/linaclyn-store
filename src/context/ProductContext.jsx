@@ -8,7 +8,8 @@ import {
   doc,
   onSnapshot,
   query,
-  orderBy
+  orderBy,
+  serverTimestamp
 } from "firebase/firestore";
 import { toast } from "sonner";
 
@@ -20,7 +21,6 @@ export function ProductProvider({ children }) {
 
   // --- BUSCAR PRODUTOS EM TEMPO REAL ---
   useEffect(() => {
-    // Use "produtos" (mesmo nome que você corrigiu na regra e no banco)
     const q = query(collection(db, "produtos"), orderBy("createdAt", "desc"));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -30,6 +30,10 @@ export function ProductProvider({ children }) {
       }));
       setProducts(list);
       setLoading(false);
+    }, (error) => {
+      console.error("Erro no Snapshot:", error);
+      toast.error("Erro ao carregar produtos.");
+      setLoading(false);
     });
 
     return () => unsubscribe();
@@ -37,39 +41,64 @@ export function ProductProvider({ children }) {
 
   // --- ADICIONAR OU EDITAR PRODUTO ---
   const saveProduct = async (productData) => {
+    // 1. Validação Preventiva de Segurança
+    if (!productData.nome || productData.nome.trim().length < 2) {
+      toast.error("O nome do produto é obrigatório.");
+      return false;
+    }
+
+    if (!productData.preco || Number(productData.preco) <= 0) {
+      toast.error("O preço deve ser maior que zero.");
+      return false;
+    }
+
     try {
       const { id, ...data } = productData;
 
-      if (id && typeof id === "string" && id.length > 15) {
-        // Se tem ID longo, é EDIÇÃO
+      // 2. Sanitização (Garante integridade dos tipos no banco)
+      const cleanData = {
+        ...data,
+        nome: data.nome.trim(),
+        preco: Number(data.preco),
+        estoque: data.estoque ? Number(data.estoque) : 0,
+        // Evita que campos 'undefined' quebrem o Firebase
+        categoria: data.categoria || "Geral",
+        imagemUrl: data.imagemUrl || ""
+      };
+
+      if (id) {
+        // EDIÇÃO
         const docRef = doc(db, "produtos", id);
         await updateDoc(docRef, {
-          ...data,
-          updatedAt: new Date().toISOString()
+          ...cleanData,
+          updatedAt: serverTimestamp()
         });
         toast.success("Produto atualizado com sucesso!");
       } else {
-        // Se não tem ID, é NOVO
+        // NOVO
         await addDoc(collection(db, "produtos"), {
-          ...data,
-          createdAt: new Date().toISOString()
+          ...cleanData,
+          createdAt: serverTimestamp()
         });
         toast.success("Produto cadastrado na LinaClyn!");
       }
       return true;
     } catch (error) {
       console.error("Erro ao salvar:", error);
-      toast.error("Erro ao salvar no banco de dados.");
+      toast.error("Falha na comunicação com o banco de dados.");
       return false;
     }
   };
 
   // --- DELETAR PRODUTO ---
   const deleteProduct = async (id) => {
+    if (!window.confirm("Tem certeza que deseja remover este produto?")) return;
+
     try {
       await deleteDoc(doc(db, "produtos", id));
       toast.success("Produto removido do estoque.");
     } catch (error) {
+      console.error("Erro ao deletar:", error);
       toast.error("Erro ao deletar produto.");
     }
   };

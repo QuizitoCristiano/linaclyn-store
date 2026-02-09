@@ -1,19 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
     Search, Send, User, ChevronLeft, MessageSquare,
-    Image as ImageIcon, Trash2, Pencil, Mic, Square, Phone
+    Image as ImageIcon, Trash2, Pencil, Mic, Square, Phone, Check
 } from 'lucide-react';
 import { useChat } from "@/context/ChatContext";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 export default function AdminMensagens() {
-    const { allChats, sendMessage, deleteMessage } = useChat();
+    const { allChats, sendMessage, deleteMessage, editMessage } = useChat();
     const [selectedUserId, setSelectedUserId] = useState(null);
     const [reply, setReply] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [editingId, setEditingId] = useState(null);
     const [isRecording, setIsRecording] = useState(false);
+
 
     const fileInputRef = useRef(null);
     const scrollRef = useRef(null);
@@ -29,25 +30,36 @@ export default function AdminMensagens() {
 
 
     // Lista de contatos formatada
+    // Lista de contatos formatada (Versão 2.0 - Inteligente e Segura)
     const contactList = Object.keys(allChats).map(uid => {
-        const history = allChats[uid];
-        const lastMessage = history[history.length - 1];
+        const chatData = allChats[uid];
 
-        // 1. Procura o nome dentro de qualquer mensagem do histórico (senderName)
-        // 2. Se for o Ricardo (pelo UID dele), o sistema vai achar o nome que ele usou ao logar
-        const clientName = history.find(m => m.senderName)?.senderName ||
-            history.find(m => m.clientName)?.clientName ||
+        // Garantimos que pegamos as mensagens, seja o chatData um array ou o novo objeto
+        const messages = Array.isArray(chatData) ? chatData : (chatData.messages || []);
+        const lastMessage = messages[messages.length - 1];
+
+        // 1. Prioridade máxima para o clientName na raiz (mais rápido)
+        // 2. Se não existir, ele faz a busca no histórico (seu código original)
+        const clientName = chatData.clientName ||
+            messages.find(m => m.senderName)?.senderName ||
             (uid.startsWith('lead_') ? "Visitante" : "Cliente");
+
+        // Lógica das mídias (Recuperada do seu original)
+        let lastMsgText = "Nova conversa";
+        if (lastMessage) {
+            if (lastMessage.type === 'image') lastMsgText = '📷 Foto';
+            else if (lastMessage.type === 'audio') lastMsgText = '🎤 Áudio';
+            else lastMsgText = lastMessage.text;
+        }
 
         return {
             uid: uid,
-            name: clientName, // Aqui agora vai aparecer "Ricardo" corretamente
-            lastMsg: lastMessage?.type === 'image' ? '📷 Foto' : lastMessage?.type === 'audio' ? '🎤 Áudio' : lastMessage?.text,
+            name: clientName,
+            lastMsg: lastMsgText,
             time: lastMessage?.timestamp || "",
             isLead: uid.startsWith('lead_'),
         };
     }).filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()));
-
 
     // Pega os dados do contato selecionado para exibir no cabeçalho
     const selectedContact = contactList.find(c => c.uid === selectedUserId);
@@ -55,23 +67,42 @@ export default function AdminMensagens() {
     const handleSend = () => {
         if (!reply.trim() || !selectedUserId) return;
 
-        const payload = {
-            text: reply,
-            sender: 'admin', // Identificador essencial
-            type: 'text',
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            isAdmin: true // Adicione isso para facilitar a regra de estilo no cliente
-        };
-
         if (editingId) {
-            // Use "LinaClyn Suporte" para bater com o cabeçalho que você já tem
-            sendMessage(selectedUserId, { ...payload, id: editingId, isEdited: true }, "LinaClyn Suporte");
+            // Agora você chama a função dedicada do Context
+            // Passamos: ID do usuário, ID da mensagem original e o Novo Texto
+            editMessage(selectedUserId, editingId, reply);
             setEditingId(null);
         } else {
+            // Envio normal de nova mensagem
+            const payload = {
+                text: reply,
+                sender: 'admin',
+                type: 'text',
+            };
             sendMessage(selectedUserId, payload, "LinaClyn Suporte");
         }
         setReply('');
     };
+
+    // ... states anteriores
+
+    // MANTENHA ESTA (Lógica Visual)
+    const canAction = (createdAt) => {
+        if (!createdAt) return false;
+        const msgDate = new Date(createdAt);
+        const now = new Date();
+        const diffInMinutes = (now - msgDate) / 1000 / 60;
+        return diffInMinutes < 10;
+    };
+
+    // MANTENHA ESTA (Preparação para editar)
+    const handleEdit = (msg) => {
+        setReply(msg.text);
+        setEditingId(msg.id);
+    };
+
+
+
 
     const handleImageUpload = (e) => {
         const file = e.target.files[0];
@@ -118,6 +149,8 @@ export default function AdminMensagens() {
             mediaRecorder.current.stream.getTracks().forEach(t => t.stop());
         }
     };
+
+
 
     return (
         <div className="flex h-[calc(100vh-140px)] bg-card rounded-3xl overflow-hidden border border-border shadow-2xl font-sans">
@@ -188,39 +221,82 @@ export default function AdminMensagens() {
                         </div>
 
                         {/* HISTÓRICO DE MENSAGENS */}
-                        <div ref={scrollRef} className="flex-1 p-6 overflow-y-auto space-y-6 bg-zinc-50/50 dark:bg-zinc-950/20">
-                            {allChats[selectedUserId]?.map((msg) => {
+                        {/* HISTÓRICO DE MENSAGENS */}
+                        <div ref={scrollRef} className="flex-1 p-6 overflow-y-auto space-y-6">
+                            {(allChats[selectedUserId]?.messages || []).map((msg) => {
                                 const isMe = msg.sender === 'admin';
+                                const timeValid = canAction(msg.createdAt);
+                                const isText = msg.type === 'text';
+
                                 return (
                                     <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                                        <div className={`max-w-[75%] p-4 rounded-3xl relative group shadow-sm transition-all ${isMe
-                                            ? 'bg-linaclyn-red text-white rounded-tr-none'
-                                            : 'bg-zinc-800 text-white rounded-tl-none border border-white/5'
+                                        <div className={`max-w-[75%] p-4 rounded-3xl relative group shadow-sm ${isMe ? 'bg-linaclyn-red text-white rounded-tr-none' : 'bg-zinc-800 text-white rounded-tl-none'
                                             }`}>
 
-                                            {msg.type === 'text' && <p className="text-sm leading-relaxed font-medium whitespace-pre-wrap">{msg.text}</p>}
-                                            {msg.type === 'image' && <img src={msg.image} className="max-h-80 rounded-xl" alt="Mídia enviada" />}
+                                            {/* Conteúdo da Mensagem */}
+                                            {msg.type === 'text' && <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.text}</p>}
+                                            {msg.type === 'image' && <img src={msg.image} className="max-h-80 rounded-xl" alt="Enviada" />}
                                             {msg.type === 'audio' && <audio src={msg.audio} controls className={`h-10 ${isMe ? 'invert' : ''}`} />}
 
+                                            {/* Rodapé: Hora e etiqueta de editado */}
                                             <div className={`text-[9px] mt-2 font-bold ${isMe ? 'text-white/60 text-right' : 'text-zinc-400'}`}>
-                                                {msg.timestamp} {msg.isEdited && "(editado)"}
+                                                {msg.timestamp} {msg.isEdited && <span className="ml-1 text-blue-300 italic">(editado)</span>}
                                             </div>
 
-                                            {/* Botão de deletar para o admin */}
-                                            <button
-                                                onClick={() => deleteMessage(selectedUserId, msg.id)}
-                                                className="absolute -left-10 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-2 text-red-500 hover:bg-red-500/10 rounded-full transition-all"
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
+                                            {/* AÇÕES (BOTÕES AO PASSAR O MOUSE) */}
+                                            <div className={`absolute ${isMe ? '-left-20' : '-right-20'} top-1/2 -translate-y-1/2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all`}>
+                                                {isMe && isText && timeValid && (
+                                                    <button
+                                                        onClick={() => handleEdit(msg)}
+                                                        className="p-2 text-blue-400 hover:bg-blue-500/10 rounded-full transition-colors"
+                                                        title="Editar mensagem"
+                                                    >
+                                                        <Pencil size={16} />
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={() => deleteMessage(selectedUserId, msg.id)}
+                                                    className="p-2 text-red-500 hover:bg-red-500/10 rounded-full transition-colors"
+                                                    title="Excluir mensagem"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 );
                             })}
                         </div>
 
+
+
+
+
+
+
+
                         {/* ÁREA DE INPUT DE RESPOSTA */}
                         <div className="p-6 border-t border-border bg-card">
+
+                            {/* STATUS DE EDIÇÃO - Aparece apenas se houver um editingId */}
+                            {editingId && (
+                                <div className="flex items-center justify-between mb-3 px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-xl animate-in fade-in slide-in-from-bottom-2">
+                                    <div className="flex items-center gap-2 text-blue-400">
+                                        <Pencil size={14} className="animate-pulse" />
+                                        <span className="text-xs font-semibold">Alterando mensagem enviada...</span>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            setEditingId(null);
+                                            setReply('');
+                                        }}
+                                        className="text-[11px] bg-red-500/20 hover:bg-red-500/40 text-red-400 px-3 py-1 rounded-full transition-colors font-bold uppercase tracking-wider"
+                                    >
+                                        Cancelar
+                                    </button>
+                                </div>
+                            )}
+
                             <div className="flex items-center gap-3 bg-secondary/80 rounded-2xl px-5 py-3 focus-within:ring-2 ring-linaclyn-red/20 transition-all">
                                 <button onClick={() => fileInputRef.current.click()} className="text-muted-foreground hover:text-linaclyn-red transition-transform hover:scale-110">
                                     <ImageIcon size={22} />
@@ -232,13 +308,17 @@ export default function AdminMensagens() {
                                     value={reply}
                                     onChange={(e) => setReply(e.target.value)}
                                     onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                                    placeholder={`Responder para ${selectedContact?.name}...`}
-                                    className="flex-1 bg-transparent border-none outline-none text-sm font-medium"
+                                    placeholder={editingId ? "Escreva a nova versão..." : `Responder para ${selectedContact?.name}...`}
+                                    className="flex-1 bg-transparent border-none outline-none text-sm font-medium placeholder:text-muted-foreground/50"
                                 />
 
                                 {reply.trim().length > 0 ? (
-                                    <button onClick={handleSend} className="bg-linaclyn-red text-white p-2.5 rounded-xl hover:scale-110 shadow-lg transition-all">
-                                        <Send size={20} />
+                                    <button
+                                        onClick={handleSend}
+                                        className={`${editingId ? 'bg-blue-500' : 'bg-linaclyn-red'} text-white p-2.5 rounded-xl hover:scale-110 shadow-lg transition-all flex items-center gap-2`}
+                                    >
+                                        {/* Muda o ícone se for edição ou envio novo */}
+                                        {editingId ? <Check size={20} /> : <Send size={20} />}
                                     </button>
                                 ) : (
                                     <button

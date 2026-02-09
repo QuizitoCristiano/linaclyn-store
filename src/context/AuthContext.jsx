@@ -8,7 +8,7 @@ import {
   sendPasswordResetEmail
 } from "firebase/auth";
 import { auth, db } from "../services/config";
-import { doc, setDoc, getDoc } from "firebase/firestore"; // Adicionei o getDoc aqui!
+import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 
 const AuthContext = createContext();
 
@@ -17,30 +17,26 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
-
   const ADMIN_EMAIL = "quizitocristiano10@gmail.com";
 
-  // --- UM ÚNICO EFFECT PARA CONTROLAR TUDO ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setLoading(true);
       if (firebaseUser) {
-        // 1. Define o usuário básico do Auth
         setUser(firebaseUser);
-
-        // 2. Busca permissões extras no Firestore
         try {
           const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
-          const userData = userDoc.data();
 
-          // 3. Prova Real: É Admin se tiver o email master OU se o role for admin no banco
-          if (firebaseUser.email === ADMIN_EMAIL || userData?.role === 'admin') {
-            setIsAdmin(true);
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            // Segurança: Prioriza o e-mail Master ou a role do banco
+            setIsAdmin(firebaseUser.email === ADMIN_EMAIL || userData?.role === 'admin');
           } else {
-            setIsAdmin(false);
+            // Caso o documento não exista (ex: login social novo), checa apenas o e-mail
+            setIsAdmin(firebaseUser.email === ADMIN_EMAIL);
           }
         } catch (error) {
-          console.error("Erro ao buscar role do usuário:", error);
-          // Fallback apenas por email se o banco falhar
+          console.error("Erro ao validar permissões:", error);
           setIsAdmin(firebaseUser.email === ADMIN_EMAIL);
         }
       } else {
@@ -53,28 +49,19 @@ export const AuthProvider = ({ children }) => {
     return () => unsubscribe();
   }, []);
 
-  const resetPassword = async (email) => {
-    try {
-      const actionCodeSettings = {
-        // Coloque a URL oficial do seu site aqui (onde o modal de login abre)
-        url: window.location.origin,
-        handleCodeInApp: true,
-      };
-      await sendPasswordResetEmail(auth, email, actionCodeSettings);
-      return true;
-    } catch (error) {
-      console.error("Erro ao resetar senha:", error);
+  const login = async (email, password) => {
+    if (!email || !password) {
+      toast.error("Preencha todos os campos!");
       return false;
     }
-  };
-  const login = async (email, password) => {
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, email.trim(), password);
       toast.success("Bem-vindo de volta!");
       return true;
     } catch (error) {
-      toast.error("Erro no login: Verifique suas credenciais.");
+      // Mensagem genérica para não dar pistas a hackers se o e-mail ou a senha está errado
+      toast.error("Acesso negado. Verifique e-mail e senha.");
       return false;
     } finally {
       setLoading(false);
@@ -82,42 +69,67 @@ export const AuthProvider = ({ children }) => {
   };
 
   const register = async (name, email, password) => {
+    if (!name || name.trim().length < 3) {
+      toast.error("Por favor, digite seu nome completo.");
+      return false;
+    }
     setLoading(true);
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
       const firebaseUser = userCredential.user;
 
-
-      await setDoc(doc(db, "users", firebaseUser.uid), {
+      // Sanitização e Gravação Segura
+      const newUser = {
         uid: firebaseUser.uid,
-        name: name, // O que você já tem
-        displayName: name, // Adicione isso para o Auth
-        email: email,
-        role: email === ADMIN_EMAIL ? 'admin' : 'customer',
-        createdAt: new Date().toISOString()
-      });
+        name: name.trim(),
+        displayName: name.trim(),
+        email: email.trim().toLowerCase(),
+        role: email.trim().toLowerCase() === ADMIN_EMAIL ? 'admin' : 'customer',
+        createdAt: serverTimestamp() // Mudança para data do servidor
+      };
 
-      toast.success("Conta criada com sucesso!");
+      await setDoc(doc(db, "users", firebaseUser.uid), newUser);
+      toast.success("Conta criada na LinaClyn!");
       return true;
     } catch (error) {
-      toast.error("Erro ao registrar: " + error.message);
+      // Tratamento de erro específico para e-mail já existente
+      if (error.code === 'auth/email-already-in-use') {
+        toast.error("Este e-mail já está cadastrado.");
+      } else {
+        toast.error("Erro ao criar conta. Tente novamente.");
+      }
       return false;
     } finally {
       setLoading(false);
     }
   };
 
+  const resetPassword = async (email) => {
+    if (!email) return toast.error("Digite seu e-mail.");
+    try {
+      await sendPasswordResetEmail(auth, email.trim(), {
+        url: window.location.origin,
+        handleCodeInApp: true,
+      });
+      toast.success("E-mail de recuperação enviado!");
+      return true;
+    } catch (error) {
+      toast.error("Erro ao processar solicitação.");
+      return false;
+    }
+  };
+
   const logout = async () => {
     try {
       await signOut(auth);
-      toast.info("Sessão encerrada.");
+      toast.info("Você saiu da conta.");
     } catch (error) {
-      toast.error("Erro ao sair.");
+      toast.error("Erro ao encerrar sessão.");
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, register, loading, isAdmin, resetPassword, }}>
+    <AuthContext.Provider value={{ user, login, logout, register, loading, isAdmin, resetPassword }}>
       {!loading && children}
     </AuthContext.Provider>
   );

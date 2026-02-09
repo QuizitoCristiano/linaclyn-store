@@ -10,7 +10,7 @@ import { useChat } from "../context/ChatContext";
 export function FloatingChat() {
     const [isOpen, setIsOpen] = useState(false);
     const [message, setMessage] = useState('');
-    const [editingId, setEditingId] = useState(null);
+    // const [editingId, setEditingId] = useState(null);
     const [isRecording, setIsRecording] = useState(false);
 
     const { user } = useAuth();
@@ -33,8 +33,18 @@ export function FloatingChat() {
 
     //2. BUSCA O HISTÓRICO REAL DO FIREBASE
     //Se não houver histórico ainda, mostra a mensagem de boas - vindas padrão
-    const chatHistory = (userId && allChats[userId])
-        ? allChats[userId]
+    //USCA O HISTÓRICO REAL
+    const chatData = (userId && allChats[userId]) ? allChats[userId] : null;
+    // 2. Extraímos as mensagens. 
+    // Se chatData for o novo formato {messages: []}, pegamos a array.
+    // Se não existir nada ainda, deixamos a array vazia [].
+    const messagesArray = chatData?.messages || (Array.isArray(chatData) ? chatData : []);
+
+    // 3. Montamos o Histórico Final
+    // Se houver mensagens no Firebase, usamos elas.
+    // Se o chat estiver VAZIO (cliente novo), mostramos a mensagem de boas-vindas.
+    const chatHistory = messagesArray.length > 0
+        ? messagesArray
         : [{
             id: 'welcome',
             text: "Olá! Como podemos ajudar hoje?",
@@ -42,8 +52,6 @@ export function FloatingChat() {
             type: 'text',
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }];
-
-
 
     const fileInputRef = useRef(null);
     const mediaRecorder = useRef(null);
@@ -57,6 +65,13 @@ export function FloatingChat() {
             console.log("Histórico atual para o usuário", userId, ":", allChats[userId]);
         }
     }, [allChats, userId]);
+
+    // 2. ESSE SERVE PARA A TELA DESCER SOZINHA (O efeito WhatsApp)
+    useEffect(() => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+    }, [chatHistory]); // Ele "escuta" quando o histórico de mensagens muda
 
 
     const handleStartChat = () => {
@@ -76,32 +91,50 @@ export function FloatingChat() {
 
 
     // 3. FUNÇÃO DE ENVIAR (Ajustada para o "Efeito WhatsApp")
+    // const handleSend = () => {
+    //     if (!message.trim() || !userId) return;
+
+    //     const currentUserName = user?.displayName || leadData.nome || localStorage.getItem('chat_user_name') || "Visitante";
+    //     // MELHORIA: Se o usuário é o DONO deste chat, ele é SEMPRE 'client' aqui na FloatingChat
+    //     // O Admin só será 'admin' quando responder pelo PAINEL ADMIN.
+    //     const senderRole = 'client';
+
+    //     const payload = {
+    //         text: message,
+    //         sender: senderRole,
+    //         senderName: currentUserName,
+    //         type: 'text',
+    //         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    //     };
+
+    //     if (editingId) {
+    //         sendMessage(userId, { ...payload, id: editingId, isEdited: true }, currentUserName);
+    //         setEditingId(null);
+    //     } else {
+    //         sendMessage(userId, payload, currentUserName);
+    //     }
+    //     setMessage('');
+    // };
+
     const handleSend = () => {
         if (!message.trim() || !userId) return;
 
-        const currentUserName = user?.displayName || leadData.nome || localStorage.getItem('chat_user_name') || "Visitante";
-        // MELHORIA: Se o usuário é o DONO deste chat, ele é SEMPRE 'client' aqui na FloatingChat
-        // O Admin só será 'admin' quando responder pelo PAINEL ADMIN.
-        const senderRole = 'client';
+        // BUSCA INTELIGENTE: 
+        // 1. Nome do Auth, 2. Nome que você pode ter no banco (se tiver), 3. Nome do formulário de Lead, 4. LocalStorage
+        const currentUserName = user?.displayName || leadData.nome || localStorage.getItem('chat_user_name') || "Cliente Logado";
 
         const payload = {
             text: message,
-            sender: senderRole,
+            sender: 'client',
             senderName: currentUserName,
             type: 'text',
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         };
 
-        if (editingId) {
-            sendMessage(userId, { ...payload, id: editingId, isEdited: true }, currentUserName);
-            setEditingId(null);
-        } else {
-            sendMessage(userId, payload, currentUserName);
-        }
+        // Note que passamos o currentUserName aqui para o Contexto salvar no clientName do banco
+        sendMessage(userId, payload, currentUserName);
         setMessage('');
     };
-
-
 
 
     const handleImageUpload = (e) => {

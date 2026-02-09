@@ -1,13 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
-import { MapPin, Truck, ShoppingBag, CreditCard, ArrowRight, ChevronLeft, Zap } from 'lucide-react';
+import { MapPin, Truck, ShoppingBag, CreditCard, ArrowRight, ChevronLeft, Zap, ShieldCheck } from 'lucide-react';
 import { db } from "@/services/config";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { toast } from 'sonner';
 import SuccessModalIem from './SuccessModal';
 import CardSecureForm from './CardSecureForm';
 import PixSecurePayment from './PixSecurePayment';
+
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements } from '@stripe/react-stripe-js';
+
+// Inicializa o Stripe com sua chave do .env
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY)
 
 // --- FUNÇÕES DE SEGURANÇA E MÁSCARA (FORA DO COMPONENTE) ---
 const formatCPF = (v) => v.replace(/\D/g, "").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2").substring(0, 14);
@@ -86,15 +92,25 @@ export default function CheckoutRouter({ onNavigate }) {
     };
 
     const nextStep = () => {
+        // 1. Validação de Dados Pessoais
         if (step === 'identification') {
             if (!formData.email.includes('@')) return toast.error("E-mail inválido!");
             if (formData.nome.length < 3) return toast.error("Nome muito curto!");
             if (formData.cpf.replace(/\D/g, "").length !== 11) return toast.error("CPF deve ter 11 dígitos!");
             if (formData.whatsapp.replace(/\D/g, "").length < 10) return toast.error("WhatsApp inválido!");
         }
+
+        // 2. Validação de Endereço
         if (step === 'address' && (!formData.cep || !formData.numero || !formData.rua)) {
             return toast.error("Preencha o endereço completo!");
         }
+
+        // 3. NOVO: Validação de Entrega
+        if (step === 'shipping' && !deliveryType) {
+            return toast.error("Selecione um método de entrega!");
+        }
+
+        // Lógica de avanço de etapa
         const steps = ['identification', 'address', 'shipping', 'payment'];
         const currentIndex = steps.indexOf(step);
         if (currentIndex < steps.length - 1) setStep(steps[currentIndex + 1]);
@@ -106,103 +122,76 @@ export default function CheckoutRouter({ onNavigate }) {
         else if (step === 'payment') setStep('shipping');
     };
 
-    const finalizarPedido = async (metodo) => {
+
+
+    const finalizarPedido = async (metodo, stripeData = null) => {
         if (cartItems.length === 0) return toast.error("Carrinho vazio!");
-
-        // VALIDAÇÃO RIGOROSA ANTES DE QUALQUER COISA
-        if (metodo === 'CARTAO') {
-            if (!formData.cardNumber || formData.cardNumber.length < 16) return toast.error("Número de cartão inválido!");
-            if (!formData.cardExpiry || formData.cardExpiry.length < 5) return toast.error("Validade inválida!");
-            if (!formData.cardCVV || formData.cardCVV.length < 3) return toast.error("CVV inválido!");
-        }
-
         setLoading(true);
 
         try {
-            const orderId = `LINA-${Math.floor(1000 + Math.random() * 9000)}`;
+            // Gera um ID como LINA-1770554041185-R82 (Timestamp + 3 caracteres aleatórios)
+            const orderId = `LINA-${Date.now()}-${Math.random().toString(36).substr(2, 3).toUpperCase()}`;
+            const userId = user ? user.uid : (formData?.email?.toLowerCase().trim() || "convidado");
 
-            // 1. CRIAMOS O PEDIDO (SEM OS DADOS SENSÍVEIS DO CARTÃO)
-            const orderData = {
-                orderId,
-                userId: user ? user.uid : formData.email.toLowerCase(),
-                customer: {
-                    nome: formData.nome,
-                    email: formData.email,
-                    cpf: formData.cpf.replace(/\D/g, ""), // Salva apenas números
-                    whatsapp: formData.whatsapp.replace(/\D/g, ""),
-                    endereco: {
-                        cep: formData.cep,
-                        rua: formData.rua,
-                        numero: formData.numero,
-                        bairro: formData.bairro,
-                        complemento: formData.complemento
-                    }
-                },
-                items: cartItems,
-                total: totalFinal,
-                metodoPagamento: metodo,
-                // AQUI É A SEGURANÇA: Salvamos apenas os 4 últimos dígitos se for cartão
-                cardFinal: metodo === 'CARTAO' ? formData.cardNumber.slice(-4) : null,
-                status: 'processando',
-                createdAt: serverTimestamp()
+            // --- MAPEAMENTO PARA O MODAL (Nomes em Inglês para bater com SuccessModalIem) ---
+            const secureItems = cartItems.map(item => ({
+                id: item.id || '',
+                name: item.name || item.nome || 'Produto', // Garante o .name para o Modal
+                price: Number(item.price || item.preco || 0), // Garante o .price como número
+                quantity: Number(item.quantity || 1) // Garante o .quantity como número
+            }));
+
+            const secureCustomerData = {
+                ...formData,
+                cpf: formData.cpf.replace(/\D/g, ""),
+                whatsapp: formData.whatsapp.replace(/\D/g, ""),
+                cep: formData.cep.replace(/\D/g, ""),
             };
 
-            // 2. ENVIAR PARA O FIREBASE
+            const orderData = {
+                orderId,
+                userId,
+                customer: secureCustomerData,
+                items: secureItems,
+                total: Number(totalFinal),
+                metodoPagamento: metodo,
+                stripePaymentId: stripeData?.id || null,
+                status: metodo === 'PIX' ? 'aguardando_pagamento' : 'pago',
+                createdAt: serverTimestamp(),
+                plataforma: 'web'
+            };
+
+            // 1. Salva no Firestore
             await setDoc(doc(db, "orders", orderId), orderData);
 
-            // 3. SE FOR CARTÃO, SIMULAMOS A TOKENIZAÇÃO (Onde entraria o Gateway)
-            if (metodo === 'CARTAO') {
-                await new Promise(res => setTimeout(res, 2000)); // Simulando criptografia JWT/Gateway
+            // 2. Atualiza perfil do usuário
+            if (user) {
+                await setDoc(doc(db, "users", user.uid), {
+                    ...secureCustomerData,
+                    lastOrder: orderId,
+                    updatedAt: serverTimestamp()
+                }, { merge: true });
             }
 
-            setLastOrder(orderData);
-            setShowSuccess(true); // <--- AQUI SOLTA OS CONFETES!
+            // --- SUCESSO ---
+            setLastOrder(orderData); // O modal vai receber esses dados "limpos"
+            setShowSuccess(true);
             if (clearCart) clearCart();
-            toast.success("Pagamento autorizado com sucesso!");
+
+            toast.success(metodo === 'PIX' ? "PIX Gerado!" : "Pagamento Aprovado!");
 
         } catch (error) {
-            console.error("Security Error:", error);
-            toast.error("Erro crítico de segurança. Tente novamente.");
+            console.error("Erro no Checkout:", error);
+            toast.error("Erro ao processar transação.");
         } finally {
             setLoading(false);
         }
     };
 
-    // const finalizarPedido = async (metodo) => {
-    //     if (cartItems.length === 0) return toast.error("Carrinho vazio!");
-    //     setLoading(true);
-    //     try {
-    //         const orderId = `LINA-${Math.floor(1000 + Math.random() * 9000)}`;
-    //         const userId = user ? user.uid : formData.email.toLowerCase().trim();
 
-    //         // SEGURANÇA: Salvar dados limpos (sem máscaras) no banco
-    //         const secureData = {
-    //             ...formData,
-    //             cpf: formData.cpf.replace(/\D/g, ""),
-    //             whatsapp: formData.whatsapp.replace(/\D/g, ""),
-    //             cep: formData.cep.replace(/\D/g, ""),
-    //             updatedAt: serverTimestamp()
-    //         };
 
-    //         await setDoc(doc(db, "users", userId), secureData, { merge: true });
 
-    //         const orderData = {
-    //             orderId, userId,
-    //             customer: secureData,
-    //             items: cartItems,
-    //             subtotal: cartTotal,
-    //             frete, total: totalFinal,
-    //             deliveryType, paymentMethod: metodo,
-    //             status: 'pendente',
-    //             createdAt: new Date().toISOString()
-    //         };
 
-    //         await setDoc(doc(db, "orders", orderId), orderData);
-    //         setLastOrder(orderData);
-    //         setShowSuccess(true);
-    //         if (clearCart) clearCart();
-    //     } catch (error) { toast.error("Erro na transação."); } finally { setLoading(false); }
-    // };
 
     const inputStyle = "w-full p-4 bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-white border border-zinc-300 dark:border-white/10 rounded-2xl outline-none focus:border-linaclyn-red transition-all placeholder:text-zinc-500";
 
@@ -295,75 +284,78 @@ export default function CheckoutRouter({ onNavigate }) {
                     )}
 
                     {/* STEP 4: PAGAMENTO (Manter como o seu) */}
+                    {/* NO STEP 4: PAGAMENTO - Certifique-se de passar o totalFinal para os componentes */}
                     {step === 'payment' && (
-                        <div className="space-y-6">
-                            {(() => {
-                                // PORTA FECHADA: Se estiver carregando o pedido final, 
-                                // desmontamos tudo para evitar cliques duplos ou interceptação.
-                                if (loading) {
-                                    return (
-                                        <div className="flex flex-col items-center justify-center p-12 space-y-4 animate-pulse">
-                                            <ShieldCheck className="text-linaclyn-red animate-bounce" size={48} />
-                                            <p className="font-black uppercase text-xs tracking-widest">Criptografando Transação...</p>
-                                        </div>
-                                    );
-                                }
-
-                                // JANELA 1: Escolha de Método (Só existe se nada mais estiver aberto)
-                                if (!showCardForm && !showPixPayment) {
-                                    return (
-                                        <div className="space-y-6 text-center animate-in fade-in duration-500">
-                                            <button onClick={prevStep} className="text-muted-foreground flex items-center gap-1 text-sm">
-                                                <ChevronLeft size={16} /> Voltar
-                                            </button>
-                                            <div className="p-8 bg-zinc-100 dark:bg-zinc-900/50 rounded-3xl border border-border">
-                                                <p className="text-muted-foreground text-xs font-black uppercase mb-1">Total Seguro</p>
-                                                <h2 className="text-5xl font-black italic">R$ {totalFinal.toFixed(2)}</h2>
+                        <div className="space-y-6 animate-in fade-in duration-500">
+                            <Elements stripe={stripePromise}>
+                                {(() => {
+                                    if (loading) {
+                                        return (
+                                            <div className="flex flex-col items-center justify-center p-12 space-y-4">
+                                                <ShieldCheck className="text-emerald-500 animate-pulse" size={48} />
+                                                <p className="font-black uppercase text-[10px] tracking-[0.2em] text-center dark:text-white">
+                                                    Criptografando Transação...
+                                                </p>
                                             </div>
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <button
-                                                    onClick={() => setShowPixPayment(true)}
-                                                    className="p-5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black rounded-2xl font-black uppercase hover:scale-[1.02] transition-all"
-                                                >
-                                                    PIX
-                                                </button>
-                                                <button
-                                                    onClick={() => setShowCardForm(true)}
-                                                    className="p-5 border-2 border-zinc-900 dark:border-white rounded-2xl font-black uppercase hover:scale-[1.02] transition-all"
-                                                >
-                                                    CARTÃO
+                                        );
+                                    }
+
+                                    if (!showCardForm && !showPixPayment) {
+                                        return (
+                                            <div className="space-y-6">
+                                                <div className="bg-zinc-100 dark:bg-zinc-900/50 p-8 rounded-[2.5rem] border border-zinc-200 dark:border-white/5 text-center">
+                                                    <p className="text-[10px] text-zinc-500 uppercase font-black mb-1 tracking-widest">Total com Entrega</p>
+                                                    <h2 className="text-5xl font-black italic dark:text-white">R$ {totalFinal.toFixed(2)}</h2>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <button
+                                                        onClick={() => setShowPixPayment(true)}
+                                                        className="p-6 bg-zinc-900 dark:bg-white text-white dark:text-black rounded-3xl font-black uppercase hover:scale-[1.02] active:scale-95 transition-all flex flex-col items-center gap-2 shadow-xl"
+                                                    >
+                                                        <Zap size={20} /> PIX
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setShowCardForm(true)}
+                                                        className="p-6 border-2 border-zinc-900 dark:border-white rounded-3xl font-black uppercase hover:scale-[1.02] active:scale-95 transition-all flex flex-col items-center gap-2 dark:text-white"
+                                                    >
+                                                        <CreditCard size={20} /> CARTÃO
+                                                    </button>
+                                                </div>
+
+                                                <button onClick={prevStep} className="w-full text-[10px] font-black uppercase text-zinc-400 py-2">
+                                                    <ChevronLeft size={12} className="inline mr-1" /> Voltar para entrega
                                                 </button>
                                             </div>
-                                        </div>
-                                    );
-                                }
+                                        );
+                                    }
 
-                                // JANELA 2: PIX (Isolamento total de variáveis)
-                                if (showPixPayment) {
-                                    return (
-                                        <PixSecurePayment
-                                            total={totalFinal}
-                                            orderId={`LINA-${Date.now()}`} // ID baseado em tempo real para unicidade
-                                            inputStyle={inputStyle}
-                                            loading={loading}
-                                            onCancel={() => setShowPixPayment(false)}
-                                            onConfirm={() => finalizarPedido('PIX')}
-                                        />
-                                    );
-                                }
+                                    if (showPixPayment) {
+                                        return (
+                                            <PixSecurePayment
+                                                total={totalFinal}
+                                                orderId={`LINA-${Date.now()}`}
+                                                inputStyle={inputStyle}
+                                                loading={loading}
+                                                onCancel={() => setShowPixPayment(false)}
+                                                onConfirm={() => finalizarPedido('PIX')}
+                                            />
+                                        );
+                                    }
 
-                                // JANELA 3: CARTÃO (Dados sensíveis morrem aqui)
-                                if (showCardForm) {
-                                    return (
-                                        <CardSecureForm
-                                            inputStyle={inputStyle}
-                                            loading={loading}
-                                            onCancel={() => setShowCardForm(false)}
-                                            onConfirm={() => finalizarPedido('CARTAO')}
-                                        />
-                                    );
-                                }
-                            })()}
+                                    if (showCardForm) {
+                                        return (
+                                            <CardSecureForm
+                                                total={totalFinal}
+                                                inputStyle={inputStyle}
+                                                loading={loading}
+                                                onCancel={() => setShowCardForm(false)}
+                                                onConfirm={(token) => finalizarPedido('CARTAO', token)}
+                                            />
+                                        );
+                                    }
+                                })()}
+                            </Elements>
                         </div>
                     )}
                 </div>

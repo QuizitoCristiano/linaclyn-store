@@ -1,52 +1,53 @@
 import React, { useState } from 'react';
-import { CreditCard, ShieldCheck, Lock } from 'lucide-react';
+import { useStripe, useElements, CardElement } from '@stripe/react-stripe-js';
+import { CreditCard, ShieldCheck, Lock, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function CardSecureForm({ onConfirm, loading, inputStyle, onCancel }) {
-    const [cardData, setCardData] = useState({
-        number: '',
-        name: '',
-        expiry: '',
-        cvv: ''
-    });
+export default function CardSecureForm({ total, onConfirm, loading, inputStyle, onCancel }) {
+    const stripe = useStripe();
+    const elements = useElements();
+    const [name, setName] = useState('');
 
-    // Máscaras de Proteção em Tempo Real
-    const handleNumber = (e) => {
-        let v = e.target.value.replace(/\D/g, "");
-        v = v.replace(/(\d{4})(\d)/g, "$1 $2").substring(0, 19);
-        setCardData({ ...cardData, number: v });
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+
+        if (!stripe || !elements) return;
+
+        if (name.length < 5) {
+            return toast.error("Digite o nome completo conforme o cartão.");
+        }
+
+        const cardElement = elements.getElement(CardElement);
+
+        // AQUI A MÁGICA: O dado do cartão vira um Token Seguro na Stripe
+        const { error, token } = await stripe.createToken(cardElement, { name });
+
+        if (error) {
+            toast.error(error.message);
+        } else {
+            // Enviamos apenas o TOKEN para o seu Firebase. Nada de números reais!
+            onConfirm(token);
+        }
     };
 
-    const handleExpiry = (e) => {
-        let v = e.target.value.replace(/\D/g, "");
-        v = v.replace(/(\d{2})(\d)/, "$1/$2").substring(0, 5);
-        setCardData({ ...cardData, expiry: v });
-    };
-
-    const handleCVV = (e) => {
-        let v = e.target.value.replace(/\D/g, "").substring(0, 4);
-        setCardData({ ...cardData, cvv: v });
-    };
-
-    const validateAndSubmit = () => {
-        const { number, name, expiry, cvv } = cardData;
-
-        // Validação Rigorosa (Nível 1)
-        if (number.length < 19) return toast.error("Número do cartão incompleto.");
-        if (name.length < 5) return toast.error("Digite o nome completo conforme o cartão.");
-        if (expiry.length < 5) return toast.error("Validade inválida.");
-        if (cvv.length < 3) return toast.error("CVV inválido.");
-
-        // Se passar, enviamos para a função principal finalizar
-        // Note: Enviamos os dados para processamento, mas o seu Checkout 
-        // deve apenas usar isso para autorizar e NÃO salvar no banco.
-        onConfirm(cardData);
+    // Estilização para o campo da Stripe "casar" com seu design
+    const cardStyle = {
+        style: {
+            base: {
+                color: "#FFFFFF",
+                fontFamily: 'inherit',
+                fontSmoothing: "antialiased",
+                fontSize: "16px",
+                "::placeholder": { color: "#71717a" },
+            },
+            invalid: { color: "#ef4444", iconColor: "#ef4444" },
+        },
     };
 
     return (
-        <div className="space-y-6 animate-in zoom-in-95 duration-300">
-            <div className="flex items-center justify-between border-b border-border pb-4">
-                <h3 className="font-black italic uppercase flex items-center gap-2">
+        <form onSubmit={handleSubmit} className="space-y-6 animate-in zoom-in-95 duration-300">
+            <div className="flex items-center justify-between border-b border-zinc-200 dark:border-white/10 pb-4">
+                <h3 className="font-black italic uppercase flex items-center gap-2 text-sm">
                     <ShieldCheck className="text-linaclyn-red" size={20} />
                     Pagamento Blindado
                 </h3>
@@ -54,49 +55,51 @@ export default function CardSecureForm({ onConfirm, loading, inputStyle, onCance
             </div>
 
             <div className="space-y-4">
-                <div className="relative">
+                {/* NOME DO TITULAR (Pode ficar no State) */}
+                <div className="space-y-1">
+                    <p className="text-[10px] font-black uppercase text-zinc-500 ml-1">Titular do Cartão</p>
                     <input
-                        type="text" placeholder="0000 0000 0000 0000" className={inputStyle}
-                        value={cardData.number} onChange={handleNumber}
+                        type="text"
+                        placeholder="NOME IMPRESSO NO CARTÃO"
+                        className={`${inputStyle} uppercase`}
+                        value={name}
+                        onChange={(e) => setName(e.target.value.toUpperCase())}
+                        required
                     />
-                    <CreditCard className="absolute right-4 top-4 opacity-20" size={20} />
                 </div>
 
-                <input
-                    type="text" placeholder="NOME DO TITULAR" className={`${inputStyle} uppercase`}
-                    value={cardData.name} onChange={(e) => setCardData({ ...cardData, name: e.target.value.toUpperCase() })}
-                />
-
-                <div className="grid grid-cols-2 gap-4">
-                    <input
-                        type="text" placeholder="MM/AA" className={inputStyle}
-                        value={cardData.expiry} onChange={handleExpiry}
-                    />
-                    <input
-                        type="password" placeholder="CVV" className={inputStyle}
-                        value={cardData.cvv} onChange={handleCVV}
-                    />
+                {/* CAMPO ÚNICO E SEGURO DA STRIPE (Número, Validade e CVV tudo em um) */}
+                <div className="space-y-1">
+                    <p className="text-[10px] font-black uppercase text-zinc-500 ml-1">Dados do Cartão</p>
+                    <div className={`${inputStyle} py-4 bg-white dark:bg-black/60 border-2 border-zinc-200 dark:border-white/10 rounded-3xl`}>
+                        <CardElement options={cardStyle} />
+                    </div>
                 </div>
             </div>
 
-            <div className="bg-zinc-100 dark:bg-white/5 p-4 rounded-2xl">
-                <p className="text-[10px] text-muted-foreground leading-relaxed uppercase font-bold tracking-tighter">
-                    Ambiente seguro LinaClyn: Seus dados sensíveis são tokenizados e processados via SSL/TLS de 256 bits.
-                    Nenhuma informação de cartão é armazenada em nossos bancos de dados.
+            <div className="bg-zinc-100 dark:bg-zinc-900/50 p-4 rounded-2xl border border-zinc-200 dark:border-white/5">
+                <p className="text-[10px] text-muted-foreground leading-relaxed uppercase font-bold tracking-tighter text-center">
+                    Criptografia SSL de 256 bits ativa. Os dados sensíveis são processados diretamente pela Stripe® e tokenizados instantaneamente.
                 </p>
             </div>
 
-            <button
-                onClick={validateAndSubmit}
-                disabled={loading}
-                className="w-full bg-linaclyn-red text-white p-5 rounded-2xl font-black uppercase hover:opacity-90 active:scale-95 transition-all shadow-xl shadow-linaclyn-red/20"
-            >
-                {loading ? 'AUTORIZANDO...' : 'CONFIRMAR PAGAMENTO'}
-            </button>
+            <div className="space-y-3">
+                <button
+                    type="submit"
+                    disabled={!stripe || loading}
+                    className="w-full bg-linaclyn-red text-white p-6 rounded-3xl font-black uppercase flex items-center justify-center gap-3 active:scale-[0.97] transition-all shadow-lg shadow-linaclyn-red/20 disabled:opacity-50"
+                >
+                    {loading ? 'AUTORIZANDO...' : `CONFIRMAR R$ ${total.toFixed(2)}`} <ArrowRight size={20} />
+                </button>
 
-            <button onClick={onCancel} className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors">
-                Escolher outro método
-            </button>
-        </div>
+                <button
+                    type="button"
+                    onClick={onCancel}
+                    className="w-full text-[10px] font-black uppercase text-zinc-400 hover:text-foreground transition-colors tracking-widest"
+                >
+                    Escolher outro método
+                </button>
+            </div>
+        </form>
     );
 }

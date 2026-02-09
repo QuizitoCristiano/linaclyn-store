@@ -1,124 +1,110 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { collection, onSnapshot, query, orderBy, doc, updateDoc } from "firebase/firestore";
 import {
-    Search, Filter, MoreHorizontal,
-    ShoppingCart, Clock, CheckCircle2, XCircle,
+    Search, Filter, ShoppingCart, Clock, CheckCircle2, XCircle,
     Truck, Eye, Download, Printer, Wallet, CreditCard, Banknote, QrCode
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ModalDetalhesPedido } from "./ModalDetalhesPedido";
-import { ModalImpressaoPedido } from "./ModalImpressaoPedido"; // Importe aqui
+import { ModalImpressaoPedido } from "./ModalImpressaoPedido";
+import { db } from "@/services/config";
+
 export default function AdminPedidos() {
     const [busca, setBusca] = useState("");
     const [filtroStatus, setFiltroStatus] = useState("TODOS STATUS");
     const [filtroPagamento, setFiltroPagamento] = useState("TODOS PAGAMENTOS");
-
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [pedidoSelecionado, setPedidoSelecionado] = useState(null);
+    const [pedidos, setPedidos] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [isModalPrintOpen, setIsModalPrintOpen] = useState(false);
+    const [pedidoParaImprimir, setPedidoParaImprimir] = useState(null);
 
     const abrirResumo = (pedido) => {
         setPedidoSelecionado(pedido);
         setIsModalOpen(true);
     };
 
-
-    // Dentro do componente AdminPedidos:
-    const [isModalPrintOpen, setIsModalPrintOpen] = useState(false);
-    const [pedidoParaImprimir, setPedidoParaImprimir] = useState(null);
-
     const abrirImpressao = (pedido) => {
         setPedidoParaImprimir(pedido);
         setIsModalPrintOpen(true);
     };
 
-    const handleUpdateStatus = (id, novoStatus) => {
-        // 1. Atualiza o status na lista de pedidos
-        setPedidos(prev => prev.map(p => p.id === id ? { ...p, status: novoStatus } : p));
+    // --- CONEXÃO REAL COM O BANCO DE DADOS ---
+    useEffect(() => {
+        const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const dadosPedidos = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    ...data,
+                    data: data.createdAt?.toDate().toLocaleDateString('pt-BR') || "Recentemente",
+                    cliente: data.customer?.nome || "Cliente",
+                    metodo: data.metodoPagamento?.toUpperCase() || "PIX",
+                    items: data.items?.length || 0,
+                    total: Number(data.total || 0),
+                    status: data.status?.toUpperCase() || "PENDENTE"
+                };
+            });
+            setPedidos(dadosPedidos);
+            setLoading(false);
+        }, (error) => {
+            console.error("Erro ao ler pedidos:", error);
+            setLoading(false);
+        });
+        return () => unsubscribe();
+    }, []);
 
-        // 2. Se o status for ENVIADO, registramos a despesa logicamente
-        if (novoStatus === 'ENVIADO') {
-            const pedido = pedidos.find(p => p.id === id);
+    const handleUpdateStatus = async (id, novoStatus) => {
+        try {
+            const pedidoRef = doc(db, "orders", id);
+            await updateDoc(pedidoRef, {
+                status: novoStatus.toLowerCase(),
+                updatedAt: new Date()
+            });
 
-            // Simulação de custos (Frete Fixo + 2% de taxa de embalagem)
-            const custoFrete = 25.00;
-            const custoEmbalagem = pedido.total * 0.02;
-            const totalGasto = custoFrete + custoEmbalagem;
-
-            console.log(`📊 LANÇAMENTO EM PLANILHA - JAN/2026`);
-            console.log(`Pedido: ${id} | Destino: ${pedido.endereco}`);
-            console.log(`Despesa Registrada: R$ ${totalGasto.toFixed(2)} (Logística)`);
-
-            // Aqui você integraria com sua API ou localStorage da Planilha
-            alert(`Pedido ${id} despachado! R$ ${totalGasto.toFixed(2)} lançados como despesa de logística.`);
+            // Registro automático de despesa LinaClyn 2026
+            if (novoStatus === 'ENVIADO') {
+                const pedido = pedidos.find(p => p.id === id);
+                const custoFrete = 25.00;
+                const taxaProcessamento = (pedido.total * 0.02);
+                const totalGasto = custoFrete + taxaProcessamento;
+                console.log(`📊 LANÇAMENTO: Pedido ${id} enviado. Custo Logístico: R$ ${totalGasto.toFixed(2)}`);
+            }
+        } catch (error) {
+            console.error("Erro ao atualizar status:", error);
         }
-
-        setPedidoSelecionado(prev => ({ ...prev, status: novoStatus }));
     };
 
-    // MANTIVE SEUS DADOS, APENAS GARANTI QUE OS NOVOS TENHAM OS CAMPOS PARA O MODAL NÃO DAR ERRO
-    const [pedidos, setPedidos] = useState([
-        { id: "#ORD-9842", cliente: "Marcos Oliveira", data: "27/01/2026", total: 459.00, status: "PAGO", items: 2, metodo: "PIX" },
-        { id: "#ORD-9841", cliente: "Ana Beatriz Silva", data: "26/01/2026", total: 1290.50, status: "PENDENTE", items: 5, metodo: "CRÉDITO" },
-        { id: "#ORD-9840", cliente: "Ricardo Santos", data: "26/01/2026", total: 89.90, status: "ENVIADO", items: 1, metodo: "DINHEIRO" },
-        { id: "#ORD-9839", cliente: "Juliana Costa", data: "25/01/2026", total: 299.90, status: "CANCELADO", items: 2, metodo: "PARCELADO" },
-        {
-            id: "#ORD-9842",
-            cliente: "Marcos Oliveira",
-            data: "27/01/2026",
-            total: 459.00,
-            status: "PAGO",
-            items: 2,
-            metodo: "PIX",
-            endereco: "Av. Paulista, 1000 - Bela Vista, São Paulo - SP",
-            produtos: [
-                { nome: "MOCHILA NIKE RED TECH", qtd: 1, preco: 299.90 },
-                { nome: "GARRAFA TÉRMICA SPORT", qtd: 1, preco: 159.10 }
-            ]
-        },
-        {
-            id: "#ORD-9841",
-            cliente: "Ana Beatriz Silva",
-            data: "26/01/2026",
-            total: 1290.50,
-            status: "PENDENTE",
-            items: 1,
-            metodo: "CRÉDITO",
-            endereco: "Rua das Flores, 45 - Batel, Curitiba - PR",
-            produtos: [
-                { nome: "PROJETOR SMART 4K", qtd: 1, preco: 1290.50 }
-            ]
-        },
-        {
-            id: "#ORD-9840",
-            cliente: "Ricardo Santos",
-            data: "26/01/2026",
-            total: 89.90,
-            status: "ENVIADO",
-            items: 1,
-            metodo: "DINHEIRO",
-            endereco: "Rua Teste, 123 - Centro", // Adicionado para evitar erro no modal
-            produtos: [{ nome: "Item Genérico", qtd: 1, preco: 89.90 }] // Adicionado para evitar erro
-        },
-        {
-            id: "#ORD-9839",
-            cliente: "Juliana Costa",
-            data: "25/01/2026",
-            total: 299.90,
-            status: "CANCELADO",
-            items: 2,
-            metodo: "PARCELADO",
-            endereco: "Rua Teste, 456 - Interior", // Adicionado
-            produtos: [{ nome: "Item Genérico", qtd: 2, preco: 149.95 }] // Adicionado
-        }
-    ]);
+    // --- MÉTRICAS REAIS (Calculadas automaticamente) ---
+    // --- MÉTRICAS REAIS (Calculadas automaticamente) ---
+    const metricasCalculadas = useMemo(() => {
+        const stats = {
+            totalFaturamento: 0, // Mudei de 'total' para 'totalFaturamento'
+            pix: 0,
+            cartao: 0,
+            cancelados: 0
+        };
+
+        pedidos.forEach(p => {
+            const valor = Number(p.total || 0);
+            const status = p.status?.toUpperCase();
+            const metodo = p.metodo?.toUpperCase();
+
+            if (status !== 'CANCELADO') {
+                stats.totalFaturamento += valor;
+                if (metodo === 'PIX') stats.pix += valor;
+                // Verificação para CRÉDITO ou CARTÃO
+                if (metodo === 'CRÉDITO' || metodo === 'CREDITO' || metodo === 'CARTAO') stats.cartao += valor;
+            } else {
+                stats.cancelados += valor;
+            }
+        });
+
+        return stats;
+    }, [pedidos]);
 
     const statusConfig = {
         PAGO: { color: "text-green-500", bg: "bg-green-500/5", border: "border-green-500/20", icon: CheckCircle2 },
@@ -130,6 +116,7 @@ export default function AdminPedidos() {
     const pagamentoConfig = {
         PIX: { icon: QrCode, label: "PIX" },
         CRÉDITO: { icon: CreditCard, label: "Cartão" },
+        CARTAO: { icon: CreditCard, label: "Cartão" },
         PARCELADO: { icon: Wallet, label: "Parcelado" },
         DINHEIRO: { icon: Banknote, label: "Dinheiro" },
     };
@@ -168,15 +155,38 @@ export default function AdminPedidos() {
                 {/* Cards de Métricas Originais */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {[
-                        { label: "Faturamento Bruto", value: "R$ 2.139,30", icon: ShoppingCart, color: "text-red-600" },
-                        { label: "Entrada via PIX", value: "R$ 459,00", icon: QrCode, color: "text-green-500" },
-                        { label: "A Receber (Crédito)", value: "R$ 1.589,40", icon: CreditCard, color: "text-blue-500" },
-                        { label: "Cancelados", value: "R$ 299,90", icon: XCircle, color: "text-zinc-400" }
+                        {
+                            label: "Faturamento Bruto",
+                            value: metricasCalculadas.totalFaturamento,
+                            icon: ShoppingCart,
+                            color: "text-red-600"
+                        },
+                        {
+                            label: "Entrada via PIX",
+                            value: metricasCalculadas.pix,
+                            icon: QrCode,
+                            color: "text-green-500"
+                        },
+                        {
+                            label: "A Receber (Crédito)",
+                            value: metricasCalculadas.cartao,
+                            icon: CreditCard,
+                            color: "text-blue-500"
+                        },
+                        {
+                            label: "Cancelados",
+                            value: metricasCalculadas.cancelados,
+                            icon: XCircle,
+                            color: "text-zinc-400"
+                        }
                     ].map((card, i) => (
                         <div key={i} className="bg-white dark:bg-[#111111] border border-zinc-200 dark:border-zinc-800/40 p-6 rounded-[2rem] shadow-sm flex items-center justify-between transition-transform hover:scale-[1.02]">
                             <div>
                                 <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1">{card.label}</p>
-                                <p className="text-xl font-black italic tracking-tighter">{card.value}</p>
+                                <p className="text-xl font-black italic tracking-tighter">
+                                    {/* Formatação automática para moeda Real */}
+                                    {card.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                </p>
                             </div>
                             <card.icon className={`w-8 h-8 ${card.color} opacity-30`} />
                         </div>
@@ -240,8 +250,16 @@ export default function AdminPedidos() {
                             </thead>
                             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/20">
                                 {pedidosFiltrados.map((pedido) => {
-                                    const Status = statusConfig[pedido.status];
-                                    const Metodo = pagamentoConfig[pedido.metodo];
+                                    // --- PROTEÇÃO CONTRA ERROS (BLINDAGEM) ---
+                                    // 1. Forçamos o status para MAIÚSCULO e definimos um padrão caso venha vazio
+                                    const statusChave = pedido.status?.toUpperCase() || "PENDENTE";
+                                    // 2. Buscamos no config. Se não existir (ex: status novo), usamos o PENDENTE para não quebrar
+                                    const Status = statusConfig[statusChave] || statusConfig["PENDENTE"];
+
+                                    // 3. Fazemos o mesmo para o método de pagamento
+                                    const metodoChave = pedido.metodo?.toUpperCase() || "PIX";
+                                    const Metodo = pagamentoConfig[metodoChave] || pagamentoConfig["PIX"];
+
                                     return (
                                         <tr key={pedido.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/10 transition-colors group">
                                             <td className="p-10">
@@ -254,6 +272,7 @@ export default function AdminPedidos() {
                                             <td className="p-10">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center border border-zinc-200 dark:border-zinc-800">
+                                                        {/* Metodo.icon agora está protegido pela blindagem acima */}
                                                         <Metodo.icon className="w-4 h-4 text-zinc-500" />
                                                     </div>
                                                     <span className="text-[10px] font-black uppercase text-zinc-500">{Metodo.label}</span>
@@ -261,13 +280,14 @@ export default function AdminPedidos() {
                                             </td>
                                             <td className="p-10 text-[10px] font-black text-zinc-400 uppercase tracking-widest">{pedido.data}</td>
                                             <td className="p-10 text-center">
+                                                {/* Status.bg e Status.color agora estão protegidos */}
                                                 <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full border ${Status.bg} ${Status.color} ${Status.border}`}>
                                                     <Status.icon className="w-3 h-3" />
-                                                    <span className="text-[9px] font-black uppercase tracking-tighter">{pedido.status}</span>
+                                                    <span className="text-[9px] font-black uppercase tracking-tighter">{statusChave}</span>
                                                 </div>
                                             </td>
                                             <td className="p-10 font-black text-zinc-800 dark:text-zinc-200 text-sm italic tracking-tighter">
-                                                R$ {pedido.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                R$ {Number(pedido.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                             </td>
                                             <td className="p-10 text-right">
                                                 <div className="flex justify-end gap-3">
@@ -279,7 +299,7 @@ export default function AdminPedidos() {
                                                         <Eye className="w-5 h-5" />
                                                     </button>
                                                     <button
-                                                        onClick={() => abrirImpressao(pedido)} // CHAMA A NOVA FUNÇÃO
+                                                        onClick={() => abrirImpressao(pedido)}
                                                         title="Imprimir Documento"
                                                         className="w-10 h-10 rounded-xl bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center text-zinc-400 hover:text-zinc-900 dark:hover:text-white border border-zinc-200 dark:border-zinc-800 transition-all active:scale-90"
                                                     >
