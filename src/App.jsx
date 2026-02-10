@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/sonner";
 
 // Contextos
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import { CartProvider, useCart } from "./context/CartContext"; // ✅ Adicionado useCart
+import { CartProvider, useCart } from "./context/CartContext";
 import { ProductProvider } from "./context/ProductContext";
 import { ChatProvider } from "./context/ChatContext";
 
@@ -32,16 +32,15 @@ import CheckoutRouter from "./Cadastro/CheckoutRouter";
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState("home");
-  const { user, isAdmin, loading, logout } = useAuth();
+  const [honeypot, setHoneypot] = useState(''); // ✅ AGORA NO LUGAR CERTO (DENTRO DO COMPONENTE)
 
-  // ✅ Puxando o estado do Checkout do Contexto de Carrinho
+  const { user, isAdmin, loading, logout } = useAuth();
   const { isCheckingOut, setIsCheckingOut } = useCart();
 
   if (loading) return <LoadingOverlay />;
 
-  // Função para navegar e resetar estados se necessário
   const handlePageChange = (page) => {
-    setIsCheckingOut(false); // Cancela o checkout se o usuário navegar para outra página pelo menu
+    setIsCheckingOut(false);
     setCurrentPage(page);
     window.scrollTo(0, 0);
   };
@@ -52,7 +51,7 @@ function AppContent() {
       return <AuthPage onLoginSuccess={() => setCurrentPage("home")} />;
     }
 
-    // 2. LÓGICA DE ADMIN (Protegida)
+    // 2. LÓGICA DE ADMIN
     if (currentPage === "admin" || currentPage.startsWith("admin-")) {
       if (!isAdmin) {
         return <AuthPage onLoginSuccess={() => setCurrentPage("admin")} />;
@@ -73,7 +72,7 @@ function AppContent() {
       );
     }
 
-    // 3. NOVO: LÓGICA DE CHECKOUT (Foco total na compra)
+    // 3. LÓGICA DE CHECKOUT
     if (isCheckingOut) {
       return (
         <CheckoutRouter onNavigate={(dest) => {
@@ -104,18 +103,40 @@ function AppContent() {
           {currentPage === "contato" && <Contato />}
         </main>
 
-        {/* FloatingChat visível apenas para clientes */}
         {!isAdmin && <FloatingChat />}
-
         <Footer />
       </>
     );
   };
 
-  return renderContent();
+  return (
+    <div className="relative">
+      {renderContent()}
+
+      {/* ✅ ARMADILHA PARA BOTS (Totalmente invisível para humanos) */}
+      <input
+        type="text"
+        name="user_verification_bypass" // Nome que engana o bot
+        value={honeypot}
+        onChange={(e) => setHoneypot(e.target.value)}
+        autoComplete="off"
+        style={{
+          position: 'absolute',
+          opacity: 0,
+          top: 0,
+          left: 0,
+          height: 0,
+          width: 0,
+          zIndex: -1,
+          pointerEvents: 'none'
+        }}
+        tabIndex="-1"
+      />
+    </div>
+  );
 }
 
-// COMPONENTE PAI (Providers)
+// COMPONENTE PAI
 export default function App() {
   return (
     <AuthProvider>
