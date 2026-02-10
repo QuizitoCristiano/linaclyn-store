@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 export default function AdminMensagens() {
-    const { allChats, sendMessage, deleteMessage, editMessage } = useChat();
+    const { allChats, sendMessage, deleteMessage, editMessage, updateTypingStatus } = useChat();
     const [selectedUserId, setSelectedUserId] = useState(null);
     const [reply, setReply] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
@@ -28,6 +28,35 @@ export default function AdminMensagens() {
         }
     }, [selectedUserId, allChats]);
 
+    // 1. Crie uma referência para controlar se já avisamos o banco que estamos digitando
+    const isTypingRef = useRef(false);
+
+    useEffect(() => {
+        if (!selectedUserId) return;
+
+        // Se o campo estiver vazio e a gente estava com status "true", limpa na hora
+        if (reply.length === 0) {
+            if (isTypingRef.current) {
+                updateTypingStatus(selectedUserId, false, true);
+                isTypingRef.current = false;
+            }
+            return;
+        }
+
+        // Se o admin começou a digitar e ainda não avisamos o Firebase...
+        if (!isTypingRef.current) {
+            updateTypingStatus(selectedUserId, true, true);
+            isTypingRef.current = true; // Marca que o banco já sabe que estamos digitando
+        }
+
+        // Timer para limpar o status se ficar 3 segundos sem apertar nenhuma tecla
+        const timeout = setTimeout(() => {
+            updateTypingStatus(selectedUserId, false, true);
+            isTypingRef.current = false; // Reseta para a próxima vez que começar a digitar
+        }, 3000);
+
+        return () => clearTimeout(timeout);
+    }, [reply, selectedUserId]);
 
     // Lista de contatos formatada
     // Lista de contatos formatada (Versão 2.0 - Inteligente e Segura)
@@ -64,26 +93,38 @@ export default function AdminMensagens() {
     // Pega os dados do contato selecionado para exibir no cabeçalho
     const selectedContact = contactList.find(c => c.uid === selectedUserId);
 
-    const handleSend = () => {
+    // Adicione o "async" antes do ()
+    const handleSend = async () => {
         if (!reply.trim() || !selectedUserId) return;
 
+        const textToSend = reply;
+        setReply('');
+        isTypingRef.current = false;
+
+        // --- MELHORIA AQUI ---
+        // Atualizamos o status de digitação
+        try {
+            await updateTypingStatus(selectedUserId, false, true);
+
+            // Opcional: Se você quiser ser ultra-preciso, 
+            // mas a lógica do Contexto com `sender !== 'admin'` já resolve 99%
+        } catch (err) {
+            console.error("Erro ao resetar status:", err);
+        }
+
         if (editingId) {
-            // Agora você chama a função dedicada do Context
-            // Passamos: ID do usuário, ID da mensagem original e o Novo Texto
-            editMessage(selectedUserId, editingId, reply);
+            editMessage(selectedUserId, editingId, textToSend);
             setEditingId(null);
         } else {
-            // Envio normal de nova mensagem
             const payload = {
-                text: reply,
+                text: textToSend,
                 sender: 'admin',
                 type: 'text',
             };
+            // O sender 'admin' aqui é a chave para o som NÃO tocar no Contexto
             sendMessage(selectedUserId, payload, "LinaClyn Suporte");
         }
-        setReply('');
     };
-
     // ... states anteriores
 
     // MANTENHA ESTA (Lógica Visual)
@@ -221,7 +262,6 @@ export default function AdminMensagens() {
                         </div>
 
                         {/* HISTÓRICO DE MENSAGENS */}
-                        {/* HISTÓRICO DE MENSAGENS */}
                         <div ref={scrollRef} className="flex-1 p-6 overflow-y-auto space-y-6">
                             {(allChats[selectedUserId]?.messages || []).map((msg) => {
                                 const isMe = msg.sender === 'admin';
@@ -273,7 +313,19 @@ export default function AdminMensagens() {
 
 
 
-
+                        {/* INDICADOR DE DIGITANDO (Letras bem pequenas) */}
+                        {allChats[selectedUserId]?.typingClient && (
+                            <div className="flex items-center gap-2 px-6 py-2 animate-pulse">
+                                <div className="flex gap-1">
+                                    <span className="w-1 h-1 bg-zinc-400 rounded-full animate-bounce"></span>
+                                    <span className="w-1 h-1 bg-zinc-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                                    <span className="w-1 h-1 bg-zinc-400 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+                                </div>
+                                <span className="text-[10px] font-medium text-zinc-500 italic">
+                                    O cliente está digitando...
+                                </span>
+                            </div>
+                        )}
 
                         {/* ÁREA DE INPUT DE RESPOSTA */}
                         <div className="p-6 border-t border-border bg-card">
@@ -306,6 +358,8 @@ export default function AdminMensagens() {
                                 <input
                                     type="text"
                                     value={reply}
+                                    // LIMPEZA AQUI: Apenas atualize o estado. 
+                                    // O useEffect que você já tem no topo do arquivo cuida do Firebase.
                                     onChange={(e) => setReply(e.target.value)}
                                     onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                                     placeholder={editingId ? "Escreva a nova versão..." : `Responder para ${selectedContact?.name}...`}

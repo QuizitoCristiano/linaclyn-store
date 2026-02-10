@@ -14,7 +14,7 @@ export function FloatingChat() {
     const [isRecording, setIsRecording] = useState(false);
 
     const { user } = useAuth();
-    const { allChats, sendMessage, deleteMessage } = useChat();
+    const { allChats, sendMessage, deleteMessage, updateTypingStatus } = useChat();
     const [leadData, setLeadData] = useState({ nome: '', whatsapp: '' });
     const [hasIdentified, setHasIdentified] = useState(false);
 
@@ -74,6 +74,7 @@ export function FloatingChat() {
     }, [chatHistory]); // Ele "escuta" quando o histórico de mensagens muda
 
 
+
     const handleStartChat = () => {
         if (leadData.nome.trim().length < 3 || leadData.whatsapp.length < 10) {
             toast.error("Preencha os dados corretamente.");
@@ -81,82 +82,88 @@ export function FloatingChat() {
         }
         const idGerado = `lead_${leadData.whatsapp.replace(/\D/g, '')}`;
 
-        // Salva no navegador para não perder ao dar F5
+        // GARANTA ISSO AQUI:
         localStorage.setItem('chat_user_id', idGerado);
-        localStorage.setItem('chat_user_name', leadData.nome);
+        localStorage.setItem('chat_user_name', leadData.nome.trim());
 
         setHasIdentified(true);
+
+        // Opcional: Já envia uma mensagem invisível ou atualiza o banco 
+        // com o nome para o admin ver que alguém entrou
+        sendMessage(idGerado, {
+            text: "Iniciou o chat",
+            sender: 'system',
+            type: 'text'
+        }, leadData.nome.trim());
+
         toast.success(`Bem-vindo, ${leadData.nome}!`);
     };
 
 
-    // 3. FUNÇÃO DE ENVIAR (Ajustada para o "Efeito WhatsApp")
-    // const handleSend = () => {
-    //     if (!message.trim() || !userId) return;
 
-    //     const currentUserName = user?.displayName || leadData.nome || localStorage.getItem('chat_user_name') || "Visitante";
-    //     // MELHORIA: Se o usuário é o DONO deste chat, ele é SEMPRE 'client' aqui na FloatingChat
-    //     // O Admin só será 'admin' quando responder pelo PAINEL ADMIN.
-    //     const senderRole = 'client';
 
-    //     const payload = {
-    //         text: message,
-    //         sender: senderRole,
-    //         senderName: currentUserName,
-    //         type: 'text',
-    //         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    //     };
-
-    //     if (editingId) {
-    //         sendMessage(userId, { ...payload, id: editingId, isEdited: true }, currentUserName);
-    //         setEditingId(null);
-    //     } else {
-    //         sendMessage(userId, payload, currentUserName);
-    //     }
-    //     setMessage('');
-    // };
-
+    // --- 1. FUNÇÃO DE ENVIAR TEXTO ---
     const handleSend = () => {
         if (!message.trim() || !userId) return;
 
-        // BUSCA INTELIGENTE: 
-        // 1. Nome do Auth, 2. Nome que você pode ter no banco (se tiver), 3. Nome do formulário de Lead, 4. LocalStorage
-        const currentUserName = user?.displayName || leadData.nome || localStorage.getItem('chat_user_name') || "Cliente Logado";
+        // 1. Pegamos o nome de todas as fontes possíveis
+        // Adicionei o user?.name (que é o que aparece no seu print do Firestore)
+        const currentName = leadData.nome?.trim() ||
+            localStorage.getItem('chat_user_name') ||
+            user?.name ||
+            user?.displayName ||
+            "Cliente";
+
+        // 2. DEBUG: Abra o console (F12) e veja o que vai aparecer aqui!
+        console.log("=== DEBUG ENVIO ===");
+        console.log("Nome encontrado:", currentName);
+        console.log("Objeto User completo:", user);
+        console.log("ID do Chat:", userId);
 
         const payload = {
             text: message,
             sender: 'client',
-            senderName: currentUserName,
+            senderName: currentName,
             type: 'text',
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         };
 
-        // Note que passamos o currentUserName aqui para o Contexto salvar no clientName do banco
-        sendMessage(userId, payload, currentUserName);
+        // 3. Enviamos o nome para o Contexto atualizar o banco
+        sendMessage(userId, payload, currentName);
+
         setMessage('');
+        updateTypingStatus(userId, false, false);
+        isTypingRef.current = false;
     };
 
-
+    // --- 2. FUNÇÃO DE ENVIAR IMAGEM ---
     const handleImageUpload = (e) => {
         const file = e.target.files[0];
         if (file && file.size <= 5 * 1024 * 1024) {
             const reader = new FileReader();
             reader.readAsDataURL(file);
             reader.onloadend = () => {
-                // GARANTIA: Pega o nome de qualquer lugar disponível
-                const currentName = user?.displayName || leadData.nome || localStorage.getItem('chat_user_name') || "Visitante";
+                const currentName = leadData.nome?.trim() ||
+                    localStorage.getItem('chat_user_name') ||
+                    user?.displayName ||
+                    "Cliente";
 
                 sendMessage(userId, {
                     image: reader.result,
                     sender: 'client',
+                    senderName: currentName,
                     type: 'image',
-                    text: "📷 Imagem" // Adicione um texto padrão para aparecer na lista de chats do Admin
+                    text: "📷 Imagem"
                 }, currentName);
             };
         } else if (file) {
             toast.error("A imagem deve ter no máximo 5MB.");
         }
     };
+
+    // --- 3. FUNÇÃO DE ENVIAR ÁUDIO (Dentro do onstop do MediaRecorder) ---
+    // Ajuste apenas a parte do reader.onloadend dentro do seu startRecording existente:
+
 
 
     const startRecording = async () => {
@@ -173,13 +180,16 @@ export function FloatingChat() {
                 reader.readAsDataURL(audioBlob);
 
                 reader.onloadend = () => {
-                    // MUDANÇA AQUI: Garantia de nome e texto para o Admin ver
-                    const currentName = user?.displayName || leadData.nome || localStorage.getItem('chat_user_name') || "Cliente";
+                    const currentName = leadData.nome?.trim() ||
+                        localStorage.getItem('chat_user_name') ||
+                        user?.displayName ||
+                        "Cliente";
 
                     sendMessage(userId, {
                         audio: reader.result,
-                        text: "🎤 Áudio", // Importante para o Admin saber o que é na lista de chats
+                        text: "🎤 Áudio",
                         sender: 'client',
+                        senderName: currentName,
                         type: 'audio'
                     }, currentName);
                 };
@@ -201,6 +211,43 @@ export function FloatingChat() {
             mediaRecorder.current.stream.getTracks().forEach(track => track.stop());
         }
     };
+
+
+
+
+    // Dentro do FloatingChat, logo após os seus outros hooks
+    const isTypingRef = useRef(false);
+
+    useEffect(() => {
+        // Usamos 'userId' que é o ID que você já definiu na linha 44
+        if (!userId) return;
+
+        // Se o campo estiver vazio, limpa o status
+        if (message.length === 0) {
+            if (isTypingRef.current) {
+                updateTypingStatus(userId, false, false); // isAdmin = false
+                isTypingRef.current = false;
+            }
+            return;
+        }
+
+        // Se começou a digitar e ainda não avisou o Firebase
+        if (!isTypingRef.current) {
+            updateTypingStatus(userId, true, false); // isAdmin = false
+            isTypingRef.current = true;
+        }
+
+        // Timer para limpar o status após 3 segundos de inatividade
+        const timeout = setTimeout(() => {
+            updateTypingStatus(userId, false, false);
+            isTypingRef.current = false;
+        }, 3000);
+
+        return () => clearTimeout(timeout);
+    }, [message, userId]); // Escuta a variável 'message' do seu input
+
+    // Verificamos se o ADMIN está digitando para este usuário específico
+    const isAdminTyping = chatData?.typingAdmin === true;
 
     return (
         <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end pointer-events-none">
@@ -310,7 +357,22 @@ export function FloatingChat() {
                                         </div>
                                     </div>
                                 ))}
+
+                                {/* ADICIONE ISSO AQUI: Indicador de Admin digitando */}
+                                {isAdminTyping && (
+                                    <div className="flex items-center gap-2 animate-pulse ml-2 mb-4">
+                                        <div className="flex gap-1">
+                                            <span className="w-1.5 h-1.5 bg-linaclyn-red rounded-full animate-bounce"></span>
+                                            <span className="w-1.5 h-1.5 bg-linaclyn-red rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                                            <span className="w-1.5 h-1.5 bg-linaclyn-red rounded-full animate-bounce [animation-delay:0.4s]"></span>
+                                        </div>
+                                        <span className="text-[11px] font-bold text-linaclyn-red italic">
+                                            Suporte LinaClyn está digitando...
+                                        </span>
+                                    </div>
+                                )}
                             </div>
+
 
                             {/* INPUT DE MENSAGENS */}
                             <div className="p-4 bg-background border-t">
@@ -327,6 +389,7 @@ export function FloatingChat() {
                                         type="text"
                                         value={message}
                                         disabled={isRecording}
+                                        // MUDANÇA AQUI: O onChange só altera o estado. O useEffect cuida do resto!
                                         onChange={(e) => setMessage(e.target.value)}
                                         onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                                         placeholder={isRecording ? "Gravando áudio..." : "Escreva uma mensagem..."}
