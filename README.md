@@ -85,4 +85,5 @@ Para instalar as dependências de testes utilizadas neste projeto e rodar a suí
 ```bash
 npm install -D vitest @testing-library/react @testing-library/jest-dom jsdom
 npm test
+## Elevação da cobertura de código para 74.4% (de 59.89%).
 ```
