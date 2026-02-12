@@ -60,35 +60,72 @@ export default function AdminMensagens() {
 
     // Lista de contatos formatada
     // Lista de contatos formatada (Versão 2.0 - Inteligente e Segura)
-    const contactList = Object.keys(allChats).map(uid => {
-        const chatData = allChats[uid];
+    // const contactList = Object.keys(allChats).map(uid => {
+    //     const chatData = allChats[uid];
 
-        // Garantimos que pegamos as mensagens, seja o chatData um array ou o novo objeto
-        const messages = Array.isArray(chatData) ? chatData : (chatData.messages || []);
-        const lastMessage = messages[messages.length - 1];
+    //     // Garantimos que pegamos as mensagens, seja o chatData um array ou o novo objeto
+    //     const messages = Array.isArray(chatData) ? chatData : (chatData.messages || []);
+    //     const lastMessage = messages[messages.length - 1];
 
-        // 1. Prioridade máxima para o clientName na raiz (mais rápido)
-        // 2. Se não existir, ele faz a busca no histórico (seu código original)
-        const clientName = chatData.clientName ||
-            messages.find(m => m.senderName)?.senderName ||
-            (uid.startsWith('lead_') ? "Visitante" : "Cliente");
+    //     // 1. Prioridade máxima para o clientName na raiz (mais rápido)
+    //     // 2. Se não existir, ele faz a busca no histórico (seu código original)
+    //     const clientName = chatData.clientName ||
+    //         messages.find(m => m.senderName)?.senderName ||
+    //         (uid.startsWith('lead_') ? "Visitante" : "Cliente");
 
-        // Lógica das mídias (Recuperada do seu original)
-        let lastMsgText = "Nova conversa";
-        if (lastMessage) {
-            if (lastMessage.type === 'image') lastMsgText = '📷 Foto';
-            else if (lastMessage.type === 'audio') lastMsgText = '🎤 Áudio';
-            else lastMsgText = lastMessage.text;
-        }
+    //     // Lógica das mídias (Recuperada do seu original)
+    //     let lastMsgText = "Nova conversa";
+    //     if (lastMessage) {
+    //         if (lastMessage.type === 'image') lastMsgText = '📷 Foto';
+    //         else if (lastMessage.type === 'audio') lastMsgText = '🎤 Áudio';
+    //         else lastMsgText = lastMessage.text;
+    //     }
 
-        return {
-            uid: uid,
-            name: clientName,
-            lastMsg: lastMsgText,
-            time: lastMessage?.timestamp || "",
-            isLead: uid.startsWith('lead_'),
-        };
-    }).filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    //     return {
+    //         uid: uid,
+    //         name: clientName,
+    //         lastMsg: lastMsgText,
+    //         time: lastMessage?.timestamp || "",
+    //         isLead: uid.startsWith('lead_'),
+    //     };
+    // }).filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    const contactList = Object.keys(allChats)
+        .map(uid => {
+            const chatData = allChats[uid];
+            const messages = Array.isArray(chatData) ? chatData : (chatData.messages || []);
+            const lastMessage = messages[messages.length - 1];
+
+            const clientName = chatData.clientName ||
+                messages.find(m => m.senderName)?.senderName ||
+                (uid.startsWith('lead_') ? "Visitante" : "Cliente");
+
+            let lastMsgText = "Nova conversa";
+            if (lastMessage) {
+                if (lastMessage.type === 'image') lastMsgText = '📷 Foto';
+                else if (lastMessage.type === 'audio') lastMsgText = '🎤 Áudio';
+                else lastMsgText = lastMessage.text;
+            }
+
+            // Criamos um valor numérico para o tempo para poder comparar no sort
+            // Se não houver mensagem, usamos 0 para ficar no fim da lista
+            const lastUpdateMillis = lastMessage?.createdAt
+                ? new Date(lastMessage.createdAt).getTime()
+                : 0;
+
+            return {
+                uid: uid,
+                name: clientName,
+                lastMsg: lastMsgText,
+                time: lastMessage?.timestamp || "",
+                isLead: uid.startsWith('lead_'),
+                lastUpdateMillis: lastUpdateMillis // Guardamos o milissegundo para ordenar
+            };
+        })
+        // FILTRO de busca
+        .filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
+        // ORDENAÇÃO: O maior timestamp (mais recente) sobe para o topo
+        .sort((a, b) => b.lastUpdateMillis - a.lastUpdateMillis);
 
     // Pega os dados do contato selecionado para exibir no cabeçalho
     const selectedContact = contactList.find(c => c.uid === selectedUserId);

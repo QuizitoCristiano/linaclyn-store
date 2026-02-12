@@ -29,6 +29,7 @@ import PaginaClientes from "./AdiminProtudos/Clientes";
 import AdminMensagens from "./AdiminProtudos/AdminMensagens";
 import AdminFinanceiro from "./AdiminProtudos/AdminFinanceiro";
 import CheckoutRouter from "./Cadastro/CheckoutRouter";
+import NotFound from "./pages/not-found";
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState("home");
@@ -67,6 +68,7 @@ function AppContent() {
             {currentPage === "admin-customers" && <PaginaClientes />}
             {currentPage === "admin-messages" && <AdminMensagens />}
             {currentPage === "admin-finance" && <AdminFinanceiro />}
+
           </main>
         </div>
       );
@@ -101,6 +103,12 @@ function AppContent() {
           {currentPage === "sobre" && <Sobre />}
           {currentPage === "servicos" && <Servicos />}
           {currentPage === "contato" && <Contato />}
+
+          {/* ✅ LÓGICA DO NOT FOUND: Se não for nenhuma das acima e não for admin */}
+          {!["home", "sobre", "servicos", "contato", "auth", "admin"].includes(currentPage) &&
+            !currentPage.startsWith("admin-") && (
+              <NotFound onNavigate={handlePageChange} />
+            )}
         </main>
 
         {!isAdmin && <FloatingChat />}

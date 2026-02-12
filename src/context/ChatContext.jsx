@@ -18,10 +18,10 @@ export function ChatProvider({ children }) {
     const [allChats, setAllChats] = useState({});
     const lastMessageCountRef = useRef({});
 
-    // Áudio de notificação
-    const notificationSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
+    // 1. Definição dos sons diferentes
+    const adminSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3"); // Alerta Admin
+    const clientSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3"); // Ding Suave Cliente
 
-    // --- EFEITO: MONITORAMENTO DE CHATS (Admin e Cliente) ---
     useEffect(() => {
         const unsubscribeAuth = auth.onAuthStateChanged((user) => {
             const isAdmin = user?.email === 'quizitocristiano10@gmail.com';
@@ -34,7 +34,7 @@ export function ChatProvider({ children }) {
                         chatsData[doc.id] = { id: doc.id, ...doc.data() };
                     });
 
-                    // Lógica de Som de Notificação
+                    // --- LÓGICA DE SOM: ADMINISTRADOR ---
                     snapshot.docChanges().forEach((change) => {
                         const chatId = change.doc.id;
                         const data = change.doc.data();
@@ -42,12 +42,11 @@ export function ChatProvider({ children }) {
                         const currentCount = messages.length;
                         const previousCount = lastMessageCountRef.current[chatId];
 
+                        // Toca o som de Admin apenas se a mensagem nova for do CLIENTE
                         if (change.type === "modified" && previousCount !== undefined && currentCount > previousCount) {
                             const lastMsg = messages[messages.length - 1];
-                            if (lastMsg && lastMsg.sender !== 'admin') {
-                                const msgTime = new Date(lastMsg.createdAt || new Date()).getTime();
-                                const isRecent = (new Date().getTime() - msgTime) < 10000;
-                                if (isRecent) notificationSound.play().catch(() => { });
+                            if (lastMsg && lastMsg.sender === 'client') {
+                                adminSound.play().catch(() => { });
                             }
                         }
                         lastMessageCountRef.current[chatId] = currentCount;
@@ -55,7 +54,7 @@ export function ChatProvider({ children }) {
                     setAllChats(chatsData);
                 });
             } else {
-                // Lógica Cliente
+                // --- LÓGICA DE SOM: CLIENTE ---
                 const leadId = localStorage.getItem('chat_user_id');
                 const activeId = user?.uid || leadId;
 
@@ -64,7 +63,19 @@ export function ChatProvider({ children }) {
                     return onSnapshot(docRef, (snapshot) => {
                         if (snapshot.exists()) {
                             const data = snapshot.data();
-                            lastMessageCountRef.current[activeId] = (data.messages || []).length;
+                            const messages = data.messages || [];
+                            const currentCount = messages.length;
+                            const previousCount = lastMessageCountRef.current[activeId];
+
+                            // Toca o som de Cliente apenas se a mensagem nova for do ADMIN
+                            if (previousCount !== undefined && currentCount > previousCount) {
+                                const lastMsg = messages[messages.length - 1];
+                                if (lastMsg && lastMsg.sender === 'admin') {
+                                    clientSound.play().catch(() => { });
+                                }
+                            }
+
+                            lastMessageCountRef.current[activeId] = currentCount;
                             setAllChats(prev => ({
                                 ...prev,
                                 [activeId]: { id: snapshot.id, ...data }
