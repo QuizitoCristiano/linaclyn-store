@@ -17,27 +17,38 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const ADMIN_EMAIL = "quizitocristiano10@gmail.com";
+  // ✅ E-mails Mestres - Constante imutável para segurança
+  const ADMIN_EMAILS = Object.freeze([
+    "admin@linaclyn.com.br",
+    "quizitocristiano10@gmail.com"
+  ]);
+
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setLoading(true);
       if (firebaseUser) {
+        // Sanitização imediata do e-mail para comparação
+        const safeEmail = firebaseUser.email?.toLowerCase().trim();
         setUser(firebaseUser);
+
         try {
           const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
 
           if (userDoc.exists()) {
             const userData = userDoc.data();
-            // Segurança: Prioriza o e-mail Master ou a role do banco
-            setIsAdmin(firebaseUser.email === ADMIN_EMAIL || userData?.role === 'admin');
+            // ✅ SEGURANÇA MÁXIMA: Verifica e-mail mestre OU permissão no banco
+            const hasPrivileges = ADMIN_EMAILS.includes(safeEmail) || userData?.role === 'admin';
+            setIsAdmin(hasPrivileges);
           } else {
-            // Caso o documento não exista (ex: login social novo), checa apenas o e-mail
-            setIsAdmin(firebaseUser.email === ADMIN_EMAIL);
+            // Caso de login via provedor externo sem doc criado ainda
+            setIsAdmin(ADMIN_EMAILS.includes(safeEmail));
           }
         } catch (error) {
-          console.error("Erro ao validar permissões:", error);
-          setIsAdmin(firebaseUser.email === ADMIN_EMAIL);
+          // Erro de conexão ou permissão de leitura no Firestore
+          console.error("Critical Auth Check Error");
+          setIsAdmin(ADMIN_EMAILS.includes(safeEmail));
         }
       } else {
         setUser(null);
@@ -51,17 +62,19 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     if (!email || !password) {
-      toast.error("Preencha todos os campos!");
+      toast.error("Por favor, preencha as credenciais.");
       return false;
     }
+
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
-      toast.success("Bem-vindo de volta!");
+      // .trim() evita espaços acidentais que falham o login
+      await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
+      toast.success("Acesso autorizado. Bem-vindo!");
       return true;
     } catch (error) {
-      // Mensagem genérica para não dar pistas a hackers se o e-mail ou a senha está errado
-      toast.error("Acesso negado. Verifique e-mail e senha.");
+      // ✅ ANTI-HACKER: Mensagem opaca. Não informa se o erro foi no e-mail ou na senha.
+      toast.error("Credenciais inválidas ou conta não encontrada.");
       return false;
     } finally {
       setLoading(false);
@@ -69,34 +82,42 @@ export const AuthProvider = ({ children }) => {
   };
 
   const register = async (name, email, password) => {
+    // Validação de entrada robusta
     if (!name || name.trim().length < 3) {
-      toast.error("Por favor, digite seu nome completo.");
+      toast.error("Nome inválido para registro.");
       return false;
     }
+
+    const safeEmail = email.trim().toLowerCase();
+
     setLoading(true);
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      const userCredential = await createUserWithEmailAndPassword(auth, safeEmail, password);
       const firebaseUser = userCredential.user;
 
-      // Sanitização e Gravação Segura
+      // ✅ PROTEÇÃO DE DADOS: Criando o objeto com dados controlados pelo servidor
       const newUser = {
         uid: firebaseUser.uid,
         name: name.trim(),
         displayName: name.trim(),
-        email: email.trim().toLowerCase(),
-        role: email.trim().toLowerCase() === ADMIN_EMAIL ? 'admin' : 'customer',
-        createdAt: serverTimestamp() // Mudança para data do servidor
+        email: safeEmail,
+        // Garante que ninguém consiga se registrar como admin via console
+        role: ADMIN_EMAILS.includes(safeEmail) ? 'admin' : 'customer',
+        createdAt: serverTimestamp(),
+        lastLogin: serverTimestamp(),
+        status: 'active'
       };
 
       await setDoc(doc(db, "users", firebaseUser.uid), newUser);
-      toast.success("Conta criada na LinaClyn!");
+      toast.success("Conta LinaClyn criada com sucesso!");
       return true;
     } catch (error) {
-      // Tratamento de erro específico para e-mail já existente
       if (error.code === 'auth/email-already-in-use') {
-        toast.error("Este e-mail já está cadastrado.");
+        toast.error("Este endereço de e-mail já está em uso.");
+      } else if (error.code === 'auth/weak-password') {
+        toast.error("A senha deve ter pelo menos 6 caracteres.");
       } else {
-        toast.error("Erro ao criar conta. Tente novamente.");
+        toast.error("Falha técnica no registro. Tente mais tarde.");
       }
       return false;
     } finally {
@@ -105,26 +126,26 @@ export const AuthProvider = ({ children }) => {
   };
 
   const resetPassword = async (email) => {
-    if (!email) return toast.error("Digite seu e-mail.");
+    if (!email) return toast.error("E-mail necessário.");
     try {
-      await sendPasswordResetEmail(auth, email.trim(), {
+      await sendPasswordResetEmail(auth, email.trim().toLowerCase(), {
         url: window.location.origin,
-        handleCodeInApp: true,
       });
-      toast.success("E-mail de recuperação enviado!");
+      toast.success("Se a conta existir, um link de redefinição foi enviado.");
       return true;
     } catch (error) {
-      toast.error("Erro ao processar solicitação.");
-      return false;
+      // Não damos pistas se o e-mail existe ou não no banco
+      toast.success("Instruções enviadas para o e-mail informado.");
+      return true;
     }
   };
 
   const logout = async () => {
     try {
       await signOut(auth);
-      toast.info("Você saiu da conta.");
+      toast.info("Sessão encerrada com segurança.");
     } catch (error) {
-      toast.error("Erro ao encerrar sessão.");
+      toast.error("Erro ao sair.");
     }
   };
 

@@ -14,7 +14,7 @@ export default function AdminMensagens() {
     const [searchTerm, setSearchTerm] = useState('');
     const [editingId, setEditingId] = useState(null);
     const [isRecording, setIsRecording] = useState(false);
-
+    const inputRef = useRef(null); // Nova ref para o input de texto
 
     const fileInputRef = useRef(null);
     const scrollRef = useRef(null);
@@ -60,38 +60,8 @@ export default function AdminMensagens() {
 
     // Lista de contatos formatada
     // Lista de contatos formatada (Versão 2.0 - Inteligente e Segura)
-    // const contactList = Object.keys(allChats).map(uid => {
-    //     const chatData = allChats[uid];
-
-    //     // Garantimos que pegamos as mensagens, seja o chatData um array ou o novo objeto
-    //     const messages = Array.isArray(chatData) ? chatData : (chatData.messages || []);
-    //     const lastMessage = messages[messages.length - 1];
-
-    //     // 1. Prioridade máxima para o clientName na raiz (mais rápido)
-    //     // 2. Se não existir, ele faz a busca no histórico (seu código original)
-    //     const clientName = chatData.clientName ||
-    //         messages.find(m => m.senderName)?.senderName ||
-    //         (uid.startsWith('lead_') ? "Visitante" : "Cliente");
-
-    //     // Lógica das mídias (Recuperada do seu original)
-    //     let lastMsgText = "Nova conversa";
-    //     if (lastMessage) {
-    //         if (lastMessage.type === 'image') lastMsgText = '📷 Foto';
-    //         else if (lastMessage.type === 'audio') lastMsgText = '🎤 Áudio';
-    //         else lastMsgText = lastMessage.text;
-    //     }
-
-    //     return {
-    //         uid: uid,
-    //         name: clientName,
-    //         lastMsg: lastMsgText,
-    //         time: lastMessage?.timestamp || "",
-    //         isLead: uid.startsWith('lead_'),
-    //     };
-    // }).filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()));
-
-    const contactList = Object.keys(allChats)
-        .map(uid => {
+    const contactList = React.useMemo(() => {
+        return Object.keys(allChats).map(uid => {
             const chatData = allChats[uid];
             const messages = Array.isArray(chatData) ? chatData : (chatData.messages || []);
             const lastMessage = messages[messages.length - 1];
@@ -100,33 +70,22 @@ export default function AdminMensagens() {
                 messages.find(m => m.senderName)?.senderName ||
                 (uid.startsWith('lead_') ? "Visitante" : "Cliente");
 
-            let lastMsgText = "Nova conversa";
-            if (lastMessage) {
-                if (lastMessage.type === 'image') lastMsgText = '📷 Foto';
-                else if (lastMessage.type === 'audio') lastMsgText = '🎤 Áudio';
-                else lastMsgText = lastMessage.text;
-            }
-
-            // Criamos um valor numérico para o tempo para poder comparar no sort
-            // Se não houver mensagem, usamos 0 para ficar no fim da lista
-            const lastUpdateMillis = lastMessage?.createdAt
-                ? new Date(lastMessage.createdAt).getTime()
-                : 0;
+            const lastUpdate = lastMessage?.timestamp?.toMillis?.() || lastMessage?.timestamp || 0;
 
             return {
-                uid: uid,
+                uid,
                 name: clientName,
-                lastMsg: lastMsgText,
+                lastMsg: lastMessage?.type === 'image' ? '📷 Foto' :
+                    lastMessage?.type === 'audio' ? '🎤 Áudio' :
+                        lastMessage?.text || "Nova conversa",
                 time: lastMessage?.timestamp || "",
                 isLead: uid.startsWith('lead_'),
-                lastUpdateMillis: lastUpdateMillis // Guardamos o milissegundo para ordenar
+                lastUpdateMillis: lastUpdate,
             };
         })
-        // FILTRO de busca
-        .filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
-        // ORDENAÇÃO: O maior timestamp (mais recente) sobe para o topo
-        .sort((a, b) => b.lastUpdateMillis - a.lastUpdateMillis);
-
+            .filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
+            .sort((a, b) => b.lastUpdateMillis - a.lastUpdateMillis);
+    }, [allChats, searchTerm]);
     // Pega os dados do contato selecionado para exibir no cabeçalho
     const selectedContact = contactList.find(c => c.uid === selectedUserId);
 
@@ -135,31 +94,23 @@ export default function AdminMensagens() {
         if (!reply.trim() || !selectedUserId) return;
 
         const textToSend = reply;
+        const currentEditingId = editingId;
+
+        // Limpa estados ANTES para UI parecer mais rápida (Optimistic UI)
         setReply('');
+        setEditingId(null);
         isTypingRef.current = false;
 
-        // --- MELHORIA AQUI ---
-        // Atualizamos o status de digitação
         try {
             await updateTypingStatus(selectedUserId, false, true);
-
-            // Opcional: Se você quiser ser ultra-preciso, 
-            // mas a lógica do Contexto com `sender !== 'admin'` já resolve 99%
+            if (currentEditingId) {
+                await editMessage(selectedUserId, currentEditingId, textToSend);
+            } else {
+                const payload = { text: textToSend, sender: 'admin', type: 'text' };
+                await sendMessage(selectedUserId, payload, "LinaClyn Suporte");
+            }
         } catch (err) {
-            console.error("Erro ao resetar status:", err);
-        }
-
-        if (editingId) {
-            editMessage(selectedUserId, editingId, textToSend);
-            setEditingId(null);
-        } else {
-            const payload = {
-                text: textToSend,
-                sender: 'admin',
-                type: 'text',
-            };
-            // O sender 'admin' aqui é a chave para o som NÃO tocar no Contexto
-            sendMessage(selectedUserId, payload, "LinaClyn Suporte");
+            toast.error("Erro ao enviar mensagem");
         }
     };
     // ... states anteriores
@@ -177,6 +128,7 @@ export default function AdminMensagens() {
     const handleEdit = (msg) => {
         setReply(msg.text);
         setEditingId(msg.id);
+        inputRef.current?.focus();
     };
 
 

@@ -5,7 +5,7 @@ import { Mail, Lock, User, ArrowRight, LockKeyholeOpen, ChevronLeft, X } from "l
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import { toast } from 'sonner';
 
-export default function AuthPage({ onLoginSuccess }) {
+export default function AuthPage({ onClose }) {
     const [view, setView] = useState('login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -113,7 +113,7 @@ export default function AuthPage({ onLoginSuccess }) {
         if (sucesso) {
             setAttempts(0);
             toast.success("Bem-vindo à LinaClyn!");
-            onLoginSuccess();
+            onClose();
         } else {
             const newAttempts = attempts + 1;
             setAttempts(newAttempts);
@@ -136,7 +136,7 @@ export default function AuthPage({ onLoginSuccess }) {
             <div className="absolute inset-0 opacity-40 bg-linaclyn-carousel blur-[80px] sm:blur-[120px] pointer-events-none" />
 
             <button
-                onClick={() => onLoginSuccess()}
+                onClick={() => onClose()}
                 className="absolute top-6 right-6 z-50 p-2 text-white/50 hover:text-white transition-colors"
             >
                 <X className="w-8 h-8" />

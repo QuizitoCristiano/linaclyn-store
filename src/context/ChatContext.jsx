@@ -18,10 +18,10 @@ export function ChatProvider({ children }) {
     const [allChats, setAllChats] = useState({});
     const lastMessageCountRef = useRef({});
 
-    // 1. Definição dos sons diferentes
-    const adminSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3"); // Alerta Admin
-    const clientSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3"); // Ding Suave Cliente
+    const adminSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
+    const clientSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3");
 
+    // --- MONITORAMENTO EM TEMPO REAL ---
     useEffect(() => {
         const unsubscribeAuth = auth.onAuthStateChanged((user) => {
             const isAdmin = user?.email === 'quizitocristiano10@gmail.com';
@@ -34,7 +34,6 @@ export function ChatProvider({ children }) {
                         chatsData[doc.id] = { id: doc.id, ...doc.data() };
                     });
 
-                    // --- LÓGICA DE SOM: ADMINISTRADOR ---
                     snapshot.docChanges().forEach((change) => {
                         const chatId = change.doc.id;
                         const data = change.doc.data();
@@ -42,19 +41,15 @@ export function ChatProvider({ children }) {
                         const currentCount = messages.length;
                         const previousCount = lastMessageCountRef.current[chatId];
 
-                        // Toca o som de Admin apenas se a mensagem nova for do CLIENTE
                         if (change.type === "modified" && previousCount !== undefined && currentCount > previousCount) {
                             const lastMsg = messages[messages.length - 1];
-                            if (lastMsg && lastMsg.sender === 'client') {
-                                adminSound.play().catch(() => { });
-                            }
+                            if (lastMsg?.sender === 'client') adminSound.play().catch(() => { });
                         }
                         lastMessageCountRef.current[chatId] = currentCount;
                     });
                     setAllChats(chatsData);
                 });
             } else {
-                // --- LÓGICA DE SOM: CLIENTE ---
                 const leadId = localStorage.getItem('chat_user_id');
                 const activeId = user?.uid || leadId;
 
@@ -67,19 +62,13 @@ export function ChatProvider({ children }) {
                             const currentCount = messages.length;
                             const previousCount = lastMessageCountRef.current[activeId];
 
-                            // Toca o som de Cliente apenas se a mensagem nova for do ADMIN
                             if (previousCount !== undefined && currentCount > previousCount) {
                                 const lastMsg = messages[messages.length - 1];
-                                if (lastMsg && lastMsg.sender === 'admin') {
-                                    clientSound.play().catch(() => { });
-                                }
+                                if (lastMsg?.sender === 'admin') clientSound.play().catch(() => { });
                             }
 
                             lastMessageCountRef.current[activeId] = currentCount;
-                            setAllChats(prev => ({
-                                ...prev,
-                                [activeId]: { id: snapshot.id, ...data }
-                            }));
+                            setAllChats(prev => ({ ...prev, [activeId]: { id: snapshot.id, ...data } }));
                         }
                     });
                 }
@@ -89,10 +78,13 @@ export function ChatProvider({ children }) {
         return () => unsubscribeAuth();
     }, []);
 
-    // --- FUNÇÃO: EDITAR MENSAGEM ---
+    // --- LÓGICA DE SEGURANÇA E MENSAGENS ---
+
+    // 1. EDITAR MENSAGEM (Com validação de existência)
     const editMessage = async (userId, messageId, newText) => {
+        if (!newText.trim()) return;
         const chatData = allChats[userId];
-        if (!chatData) return;
+        if (!chatData?.messages) return;
 
         const updatedMessages = chatData.messages.map(msg =>
             msg.id === messageId ? { ...msg, text: newText, isEdited: true } : msg
@@ -104,14 +96,43 @@ export function ChatProvider({ children }) {
                 lastUpdate: serverTimestamp()
             });
         } catch (error) {
-            console.error("Erro ao editar:", error);
+            console.error("Erro na edição segura:", error);
+            throw error;
         }
     };
 
-    // --- FUNÇÃO: DELETAR MENSAGEM ---
+    // 2. ENVIAR IMAGEM (Com trava de tamanho de 2MB)
+    const sendImageMessage = async (userId, file, currentName, isAdmin = false) => {
+        const MAX_SIZE = 2 * 1024 * 1024; // 2MB
+
+        if (file.size > MAX_SIZE) {
+            throw new Error("Imagem muito pesada! Limite de 2MB.");
+        }
+
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onloadend = async () => {
+                try {
+                    await sendMessage(userId, {
+                        image: reader.result,
+                        sender: isAdmin ? 'admin' : 'client', // Flexível agora
+                        senderName: currentName,
+                        type: 'image',
+                        text: "📷 Imagem"
+                    }, currentName);
+                    resolve();
+                } catch (err) {
+                    reject(err);
+                }
+            };
+            reader.onerror = () => reject(new Error("Erro ao processar imagem."));
+        });
+    };
+    // 3. DELETAR MENSAGEM
     const deleteMessage = async (userId, messageId) => {
         const chatData = allChats[userId];
-        if (!chatData || !chatData.messages) return;
+        if (!chatData?.messages) return;
 
         const updatedMessages = chatData.messages.filter(m => m.id !== messageId);
         try {
@@ -121,53 +142,62 @@ export function ChatProvider({ children }) {
         }
     };
 
-    // --- FUNÇÃO: STATUS DE DIGITANDO ---
+    // 4. STATUS DIGITANDO
     const updateTypingStatus = async (chatId, isTyping, isAdmin = false) => {
         if (!chatId) return;
         try {
             await updateDoc(doc(db, "chats", chatId), {
                 [isAdmin ? 'typingAdmin' : 'typingClient']: isTyping
             });
-        } catch (error) {
-            console.error("Erro no typing status:", error);
-        }
+        } catch (error) { /* Silencioso para não poluir console */ }
     };
 
-    // --- FUNÇÃO: ENVIAR MENSAGEM (Com correção de Nome) ---
+    // 5. ENVIAR MENSAGEM (Base)
+    // const sendMessage = async (chatId, messageData, displayName) => {
+    //     if (!chatId) return;
+
+    //     let finalName = displayName?.trim() || "Cliente";
+    //     if (messageData.sender === 'admin') finalName = "Suporte LinaClyn";
+
+    //     const newMessage = {
+    //         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    //         text: messageData.text || "",
+    //         sender: messageData.sender,
+    //         senderName: finalName,
+    //         type: messageData.type || 'text',
+    //         image: messageData.image || null,
+    //         audio: messageData.audio || null,
+    //         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    //         createdAt: new Date().toISOString()
+    //     };
+
+    //     const chatRef = doc(db, "chats", chatId);
+    //     const updateData = {
+    //         messages: arrayUnion(newMessage),
+    //         lastUpdate: serverTimestamp(),
+    //         userId: chatId,
+    //         ...(messageData.sender === 'client' && { clientName: finalName })
+    //     };
+
+    //     try {
+    //         await updateDoc(chatRef, updateData);
+    //     } catch (error) {
+    //         await setDoc(chatRef, {
+    //             ...updateData,
+    //             messages: [newMessage],
+    //             createdAt: serverTimestamp(),
+    //             typingAdmin: false,
+    //             typingClient: false
+    //         });
+    //     }
+    // };
+
     const sendMessage = async (chatId, messageData, displayName) => {
         if (!chatId) return;
 
-        // 1. Edição rápida
-        if (messageData.id && messageData.isEdited) {
-            return editMessage(chatId, messageData.id, messageData.text);
-        }
+        let finalName = displayName?.trim() || "Cliente";
+        if (messageData.sender === 'admin') finalName = "Suporte LinaClyn";
 
-        // 2. Determinação do Nome Real
-        let finalName = "Cliente";
-        if (messageData.sender === 'admin') {
-            finalName = "Suporte LinaClyn";
-        } else {
-            finalName = displayName?.trim() ||
-                localStorage.getItem('chat_user_name') ||
-                auth.currentUser?.displayName ||
-                "Cliente";
-
-            // Busca profunda no Firestore se o nome ainda estiver genérico
-            if (finalName === "Cliente") {
-                try {
-                    const userSnap = await getDoc(doc(db, "users", chatId));
-                    if (userSnap.exists()) {
-                        const userData = userSnap.data();
-                        finalName = userData.name || userData.nome || userData.displayName || "Cliente";
-                        localStorage.setItem('chat_user_name', finalName);
-                    }
-                } catch (err) {
-                    console.error("Erro ao buscar nome real:", err);
-                }
-            }
-        }
-
-        // 3. Montagem da Mensagem
         const newMessage = {
             id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             text: messageData.text || "",
@@ -183,24 +213,20 @@ export function ChatProvider({ children }) {
         const chatRef = doc(db, "chats", chatId);
 
         try {
-            // 4. Update (Forçando o clientName na capa do chat)
-            const updateData = {
+            // Tenta atualizar se o chat já existir
+            await updateDoc(chatRef, {
                 messages: arrayUnion(newMessage),
                 lastUpdate: serverTimestamp(),
-                userId: chatId
-            };
-
-            if (messageData.sender === 'client') {
-                updateData.clientName = finalName;
-            }
-
-            await updateDoc(chatRef, updateData);
+                userId: chatId,
+                ...(messageData.sender === 'client' && { clientName: finalName })
+            });
         } catch (error) {
-            // 5. Create (Se o chat não existir)
+            // Se o chat NÃO existir (erro cai aqui), criamos do zero.
+            // IMPORTANTE: Aqui NÃO usamos arrayUnion, passamos o array [newMessage] direto.
             await setDoc(chatRef, {
                 userId: chatId,
                 clientName: messageData.sender === 'client' ? finalName : "Novo Cliente",
-                messages: [newMessage],
+                messages: [newMessage], // Array simples, sem funções do Firebase
                 lastUpdate: serverTimestamp(),
                 createdAt: serverTimestamp(),
                 typingAdmin: false,
@@ -210,7 +236,14 @@ export function ChatProvider({ children }) {
     };
 
     return (
-        <ChatContext.Provider value={{ allChats, sendMessage, deleteMessage, editMessage, updateTypingStatus }}>
+        <ChatContext.Provider value={{
+            allChats,
+            sendMessage,
+            sendImageMessage,
+            deleteMessage,
+            editMessage,
+            updateTypingStatus
+        }}>
             {children}
         </ChatContext.Provider>
     );

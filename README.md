@@ -8,7 +8,7 @@
 
 Para garantir velocidade e SEO de qualidade, utilizei as melhores ferramentas do mercado:
 
-- **Front-End:** [React](https://reactjs.org/) & [Next.js](https://nextjs.org/) (App Router).
+- **Front-End:** [React](https://reactjs.org/) & [Vite.Js](https://nextjs.org/) (App Router).
 - **Estilização:** [Tailwind CSS](https://tailwindcss.com/) com suporte nativo a **Dark Mode**.
 - **Componentes UI:** Shadcn/UI e Lucide React para ícones.
 - **Gerenciamento de Estado:** Context API (organizado em contextos de Autenticação, Carrinho, Produtos e Chat).

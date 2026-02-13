@@ -1,28 +1,29 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom"; // 1. Importe o hook de navegação
 import { LogOut, ShieldCheck, Camera } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
-export default function UserAvatar({ onAdminAccess }) {
+export default function UserAvatar() { // Removi o onAdminAccess das props para usar o navigate direto aqui
   const [isOpen, setIsOpen] = useState(false);
   const { user, isAdmin, logout } = useAuth();
+  const navigate = useNavigate(); // 2. Inicialize o navigate
+
   const [avatarImage, setAvatarImage] = useState(localStorage.getItem(`userAvatar_${user?.uid}`) || "");
 
   // --- LÓGICA DAS INICIAIS ---
-
-  const userName = user?.name || user?.displayName || "Usuário";
-  // Alteramos para aceitar o nome e garantir que ele exista antes de tratar
   const getInitials = (name) => {
-    if (!name) return "U"; // "U" de Usuário como fallback padrão
-
+    if (!name) return "U";
     const names = name.trim().split(" ");
     if (names.length >= 2) {
       return (names[0][0] + names[names.length - 1][0]).toUpperCase();
     }
     return names[0][0].toUpperCase();
   };
+
   const handleLogout = () => {
     setIsOpen(false);
     logout();
+    navigate("/"); // Volta para home ao deslogar
   };
 
   const handleFileChange = (event) => {
@@ -31,7 +32,6 @@ export default function UserAvatar({ onAdminAccess }) {
       const reader = new FileReader();
       reader.onloadend = () => {
         setAvatarImage(reader.result);
-        // Salvamos com o UID para que cada usuário tenha sua foto no mesmo navegador
         localStorage.setItem(`userAvatar_${user?.uid}`, reader.result);
       };
       reader.readAsDataURL(file);
@@ -42,6 +42,7 @@ export default function UserAvatar({ onAdminAccess }) {
 
   return (
     <div className="relative">
+      {/* BOTÃO DO AVATAR */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="h-10 w-10 rounded-full border-2 border-white/10 overflow-hidden hover:border-linaclyn-red transition-all focus:outline-none flex items-center justify-center"
@@ -50,23 +51,21 @@ export default function UserAvatar({ onAdminAccess }) {
           <img src={avatarImage} alt="Profile" className="h-full w-full object-cover" />
         ) : (
           <div className="h-full w-full bg-linaclyn-red flex items-center justify-center text-white text-sm font-black tracking-tighter">
-            {/* Aqui usamos userName que é mais seguro, ou garantimos um texto fixo */}
             {getInitials(user?.name || user?.displayName || "Usuário")}
           </div>
         )}
       </button>
-
 
       {isOpen && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)}></div>
           <div className="absolute right-0 mt-3 w-64 bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl z-20 overflow-hidden animate-in fade-in zoom-in duration-200">
 
+            {/* BANNER DO USUÁRIO */}
             <div className="p-4 border-b border-white/5 bg-white/5 flex items-center gap-3">
-              {/* Avatar pequeno dentro do menu */}
-              <div className="h-10 w-10 rounded-full bg-linaclyn-red flex items-center justify-center text-white font-bold text-xs">
+              <div className="h-10 w-10 rounded-full bg-linaclyn-red flex items-center justify-center text-white font-bold text-xs overflow-hidden">
                 {avatarImage ? (
-                  <img src={avatarImage} className="rounded-full h-full w-full object-cover" />
+                  <img src={avatarImage} className="h-full w-full object-cover" />
                 ) : getInitials(user.name || user.displayName)}
               </div>
               <div className="flex-1 min-w-0">
@@ -87,9 +86,13 @@ export default function UserAvatar({ onAdminAccess }) {
                 <input id="avatarUpload" type="file" hidden accept="image/*" onChange={handleFileChange} />
               </button>
 
+              {/* LINK DO PAINEL ADMIN - Agora com Navegação Real */}
               {isAdmin && (
                 <button
-                  onClick={() => { onAdminAccess(); setIsOpen(false); }}
+                  onClick={() => {
+                    navigate("/admin"); // Aqui ele faz a mágica de carregar a página
+                    setIsOpen(false);
+                  }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-300 hover:bg-white/5 rounded-xl transition-colors"
                 >
                   <ShieldCheck className="w-4 h-4 text-linaclyn-red" />

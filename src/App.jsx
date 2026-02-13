@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 
 // Contextos
@@ -7,155 +8,136 @@ import { CartProvider, useCart } from "./context/CartContext";
 import { ProductProvider } from "./context/ProductContext";
 import { ChatProvider } from "./context/ChatContext";
 
-// Componentes UI e Layout
+// Componentes Layout
 import Header from "@/components/ui/Header";
 import AdminHeader from "@/AdiminProtudos/AdminHeader";
 import LoadingOverlay from "@/components/ui/LoadingOverlay";
 import { Footer } from "./components/Footer";
 import { FloatingChat } from "./pages/FloatingChat";
 
-// Páginas Cliente
+// Páginas
 import ClientHome from "@/pages/ClientHome";
 import Sobre from "@/pages/Sobre";
 import Servicos from "@/pages/Servicos";
 import Contato from "@/pages/Contato";
 import AuthPage from "./Cadastro/login&Cad";
-
-// Páginas Admin
 import Dashboard from "./AdiminProtudos/Dashboard";
 import AdminProdutos from "./AdiminProtudos/Produtos";
 import AdminPedidos from "./AdiminProtudos/Pedidos";
 import PaginaClientes from "./AdiminProtudos/Clientes";
-import AdminMensagens from "./AdiminProtudos/AdminMensagens";
 import AdminFinanceiro from "./AdiminProtudos/AdminFinanceiro";
 import CheckoutRouter from "./Cadastro/CheckoutRouter";
 import NotFound from "./pages/not-found";
+import AdminMensagens from "./AdiminProtudos/AdminMensagens";
+
+// --- 🛡️ COMPONENTES DE ESTRUTURA ---
+
+const ProtectedAdminRoute = ({ children }) => {
+  const { user, isAdmin, loading } = useAuth();
+  if (loading) return <LoadingOverlay />;
+  if (!user || !isAdmin) return <Navigate to="/auth" replace />;
+  return children;
+};
+
+// Layout da Loja (Onde aparecem Header e Footer)
+const ClientLayout = () => (
+  <>
+    <Header />
+    <main className="container mx-auto px-0 sm:px-6 lg:px-8 py-8">
+      <Outlet />
+    </main>
+    <FloatingChat />
+    <Footer />
+  </>
+);
+
+// Layout do Admin
+const AdminLayout = ({ logout }) => (
+  <div className="min-h-screen bg-background">
+    <AdminHeader onLogout={logout} />
+    <main className="container mx-auto px-4 py-8">
+      <Outlet />
+    </main>
+  </div>
+);
+
+// --- 🚀 LÓGICA PRINCIPAL ---
 
 function AppContent() {
-  const [currentPage, setCurrentPage] = useState("home");
-  const [honeypot, setHoneypot] = useState(''); // ✅ AGORA NO LUGAR CERTO (DENTRO DO COMPONENTE)
-
-  const { user, isAdmin, loading, logout } = useAuth();
-  const { isCheckingOut, setIsCheckingOut } = useCart();
+  const [honeypot, setHoneypot] = useState('');
+  const { loading, logout } = useAuth();
+  const { isCheckingOut } = useCart();
+  const navigate = useNavigate();
 
   if (loading) return <LoadingOverlay />;
 
-  const handlePageChange = (page) => {
-    setIsCheckingOut(false);
-    setCurrentPage(page);
-    window.scrollTo(0, 0);
-  };
-
-  const renderContent = () => {
-    // 1. LÓGICA DE LOGIN/CADASTRO
-    if (currentPage === "auth") {
-      return <AuthPage onLoginSuccess={() => setCurrentPage("home")} />;
-    }
-
-    // 2. LÓGICA DE ADMIN
-    if (currentPage === "admin" || currentPage.startsWith("admin-")) {
-      if (!isAdmin) {
-        return <AuthPage onLoginSuccess={() => setCurrentPage("admin")} />;
-      }
-
-      return (
-        <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
-          <AdminHeader onNavigate={handlePageChange} onLogout={logout} />
-          <main className="container mx-auto px-4 py-8">
-            {currentPage === "admin" && <Dashboard />}
-            {currentPage === "admin-products" && <AdminProdutos />}
-            {currentPage === "admin-orders" && <AdminPedidos />}
-            {currentPage === "admin-customers" && <PaginaClientes />}
-            {currentPage === "admin-messages" && <AdminMensagens />}
-            {currentPage === "admin-finance" && <AdminFinanceiro />}
-
-          </main>
-        </div>
-      );
-    }
-
-    // 3. LÓGICA DE CHECKOUT
-    if (isCheckingOut) {
-      return (
-        <CheckoutRouter onNavigate={(dest) => {
-          if (dest === 'home') {
-            setIsCheckingOut(false);
-            setCurrentPage('home');
-          }
-        }} />
-      );
-    }
-
-    // 4. FLUXO NORMAL DO CLIENTE
-    return (
-      <>
-        <Header
-          currentPage={currentPage}
-          onNavigate={handlePageChange}
-          onAdminAccess={() => setCurrentPage("admin")}
-          onLoginClick={() => setCurrentPage("auth")}
-          onLogout={logout}
-          user={user}
-        />
-
-        <main className="container mx-auto px-0 sm:px-6 lg:px-8 py-8">
-          {currentPage === "home" && <ClientHome />}
-          {currentPage === "sobre" && <Sobre />}
-          {currentPage === "servicos" && <Servicos />}
-          {currentPage === "contato" && <Contato />}
-
-          {/* ✅ LÓGICA DO NOT FOUND: Se não for nenhuma das acima e não for admin */}
-          {!["home", "sobre", "servicos", "contato", "auth", "admin"].includes(currentPage) &&
-            !currentPage.startsWith("admin-") && (
-              <NotFound onNavigate={handlePageChange} />
-            )}
-        </main>
-
-        {!isAdmin && <FloatingChat />}
-        <Footer />
-      </>
-    );
+  // Função para o botão X da AuthPage
+  const handleCloseAuth = () => {
+    navigate("/"); // Se o usuário clicar no X, volta para a Home
   };
 
   return (
     <div className="relative">
-      {renderContent()}
+      <Routes>
+        {/* 1. MUNDO CLIENTE */}
+        <Route element={<ClientLayout />}>
+          <Route path="/" element={<ClientHome />} />
+          <Route path="/sobre" element={<Sobre />} />
+          <Route path="/servicos" element={<Servicos />} />
+          <Route path="/contato" element={<Contato />} />
+        </Route>
 
-      {/* ✅ ARMADILHA PARA BOTS (Totalmente invisível para humanos) */}
+        {/* 2. PÁGINA ABSOLUTA DE LOGIN/CADASTRO */}
+        {/* Passamos a função handleCloseAuth para o componente usar no botão X */}
+        <Route path="/auth" element={<AuthPage onClose={handleCloseAuth} />} />
+
+        {/* 3. MUNDO CHECKOUT */}
+        <Route path="/checkout/*" element={isCheckingOut ? <CheckoutRouter /> : <Navigate to="/" />} />
+
+        {/* 4. MUNDO ADMIN */}
+        <Route path="/admin" element={
+          <ProtectedAdminRoute>
+            <AdminLayout logout={logout} />
+          </ProtectedAdminRoute>
+        }>
+          <Route index element={<Dashboard />} />
+          <Route path="products" element={<AdminProdutos />} />
+          <Route path="orders" element={<AdminPedidos />} />
+          <Route path="customers" element={<PaginaClientes />} />
+          <Route path="messages" element={<AdminMensagens />} />
+          <Route path="finance" element={<AdminFinanceiro />} />
+        </Route>
+
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+
+      {/* Honeypot Anti-Bot */}
       <input
         type="text"
-        name="user_verification_bypass" // Nome que engana o bot
+        name="user_verification_bypass"
         value={honeypot}
         onChange={(e) => setHoneypot(e.target.value)}
         autoComplete="off"
-        style={{
-          position: 'absolute',
-          opacity: 0,
-          top: 0,
-          left: 0,
-          height: 0,
-          width: 0,
-          zIndex: -1,
-          pointerEvents: 'none'
-        }}
+        style={{ position: 'absolute', opacity: 0, top: 0, left: 0, height: 0, width: 0, zIndex: -1, pointerEvents: 'none' }}
         tabIndex="-1"
       />
     </div>
   );
 }
 
-// COMPONENTE PAI
 export default function App() {
   return (
-    <AuthProvider>
-      <ChatProvider>
-        <ProductProvider>
-          <CartProvider>
-            <AppContent />
-            <Toaster position="top-right" richColors closeButton />
-          </CartProvider>
-        </ProductProvider>
-      </ChatProvider>
-    </AuthProvider>
+    <BrowserRouter>
+      <AuthProvider>
+        <ChatProvider>
+          <ProductProvider>
+            <CartProvider>
+              <AppContent />
+              <Toaster position="top-right" richColors closeButton />
+            </CartProvider>
+          </ProductProvider>
+        </ChatProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }

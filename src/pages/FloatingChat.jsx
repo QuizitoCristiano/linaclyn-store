@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
     MessageCircle, X, Send, Mic, Image as ImageIcon,
-    Trash2, Square, User, Phone, CheckCheck
+    Trash2, Square, User, Phone, CheckCheck, Pencil, Undo2
 } from 'lucide-react';
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
@@ -12,11 +12,17 @@ export function FloatingChat() {
     const [message, setMessage] = useState('');
     // const [editingId, setEditingId] = useState(null);
     const [isRecording, setIsRecording] = useState(false);
-
+    const [editingMsg, setEditingMsg] = useState(null); // Para controlar qual mensagem está sendo editada
     const { user } = useAuth();
-    const { allChats, sendMessage, deleteMessage, updateTypingStatus } = useChat();
+    const { allChats, sendMessage, sendImageMessage, deleteMessage, editMessage, updateTypingStatus } = useChat();
     const [leadData, setLeadData] = useState({ nome: '', whatsapp: '' });
     const [hasIdentified, setHasIdentified] = useState(false);
+
+    // Função para iniciar a edição
+    const startEditing = (msg) => {
+        setEditingMsg(msg);
+        setMessage(msg.text); // Coloca o texto da mensagem no input
+    };
 
     const handleLogoutChat = () => {
         localStorage.removeItem('chat_user_id');
@@ -73,91 +79,88 @@ export function FloatingChat() {
         }
     }, [chatHistory]); // Ele "escuta" quando o histórico de mensagens muda
 
+    // Use um useEffect para recuperar o ID do localStorage assim que o componente monta
+    useEffect(() => {
+        const saved = localStorage.getItem('chat_user_id');
+        if (saved) setHasIdentified(true);
+    }, []);
 
 
-    const handleStartChat = () => {
+
+    const handleStartChat = async () => {
         if (leadData.nome.trim().length < 3 || leadData.whatsapp.length < 10) {
             toast.error("Preencha os dados corretamente.");
             return;
         }
-        const idGerado = `lead_${leadData.whatsapp.replace(/\D/g, '')}`;
+        const whatsApenasNumeros = leadData.whatsapp.replace(/\D/g, '');
+        const idGerado = `lead_${whatsApenasNumeros}`;
 
-        // GARANTA ISSO AQUI:
         localStorage.setItem('chat_user_id', idGerado);
         localStorage.setItem('chat_user_name', leadData.nome.trim());
 
         setHasIdentified(true);
 
-        // Opcional: Já envia uma mensagem invisível ou atualiza o banco 
-        // com o nome para o admin ver que alguém entrou
-        sendMessage(idGerado, {
-            text: "Iniciou o chat",
-            sender: 'system',
-            type: 'text'
-        }, leadData.nome.trim());
+        // Envia a primeira mensagem para criar o documento no Firestore
+        try {
+            await sendMessage(idGerado, {
+                text: "Olá, gostaria de iniciar um atendimento.",
+                sender: 'client',
+                type: 'text'
+            }, leadData.nome.trim());
 
-        toast.success(`Bem-vindo, ${leadData.nome}!`);
+            toast.success(`Bem-vindo, ${leadData.nome}!`);
+        } catch (error) {
+            console.error("Erro ao iniciar chat:", error);
+        }
     };
-
 
 
 
     // --- 1. FUNÇÃO DE ENVIAR TEXTO ---
-    const handleSend = () => {
+    // Modifique o seu handleSend para suportar edição:
+    const handleSend = async () => {
         if (!message.trim() || !userId) return;
 
-        // 1. Pegamos o nome de todas as fontes possíveis
-        // Adicionei o user?.name (que é o que aparece no seu print do Firestore)
-        const currentName = leadData.nome?.trim() ||
-            localStorage.getItem('chat_user_name') ||
-            user?.name ||
-            user?.displayName ||
-            "Cliente";
-
-        // 2. DEBUG: Abra o console (F12) e veja o que vai aparecer aqui!
-        console.log("=== DEBUG ENVIO ===");
-        console.log("Nome encontrado:", currentName);
-        console.log("Objeto User completo:", user);
-        console.log("ID do Chat:", userId);
-
-        const payload = {
-            text: message,
-            sender: 'client',
-            senderName: currentName,
-            type: 'text',
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
-
-        // 3. Enviamos o nome para o Contexto atualizar o banco
-        sendMessage(userId, payload, currentName);
-
-        setMessage('');
-        updateTypingStatus(userId, false, false);
-        isTypingRef.current = false;
+        if (editingMsg) {
+            // Lógica de EDITAR
+            try {
+                await editMessage(userId, editingMsg.id, message);
+                setEditingMsg(null);
+                setMessage('');
+                toast.success("Mensagem editada!");
+            } catch (error) {
+                toast.error("Erro ao editar.");
+            }
+        } else {
+            // Lógica de ENVIAR (seu código atual...)
+            const currentName = leadData.nome?.trim() || localStorage.getItem('chat_user_name') || user?.displayName || "Cliente";
+            sendMessage(userId, {
+                text: message,
+                sender: 'client',
+                senderName: currentName,
+                type: 'text'
+            }, currentName);
+            setMessage('');
+        }
     };
 
-    // --- 2. FUNÇÃO DE ENVIAR IMAGEM ---
-    const handleImageUpload = (e) => {
-        const file = e.target.files[0];
-        if (file && file.size <= 5 * 1024 * 1024) {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onloadend = () => {
-                const currentName = leadData.nome?.trim() ||
-                    localStorage.getItem('chat_user_name') ||
-                    user?.displayName ||
-                    "Cliente";
 
-                sendMessage(userId, {
-                    image: reader.result,
-                    sender: 'client',
-                    senderName: currentName,
-                    type: 'image',
-                    text: "📷 Imagem"
-                }, currentName);
-            };
-        } else if (file) {
-            toast.error("A imagem deve ter no máximo 5MB.");
+    // --- 2. FUNÇÃO DE ENVIAR IMAGEM (Refatorada para usar o Contexto) ---
+    const handleImageUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const currentName = leadData.nome?.trim() ||
+            localStorage.getItem('chat_user_name') ||
+            user?.displayName || "Cliente";
+
+        try {
+            // AQUI: Chama a função específica de imagem do contexto
+            await sendImageMessage(userId, file, currentName);
+            toast.success("Imagem enviada!");
+            if (fileInputRef.current) fileInputRef.current.value = "";
+        } catch (error) {
+            toast.error(error.message); // Exibe o erro de 2MB se houver
         }
     };
 
@@ -327,6 +330,7 @@ export function FloatingChat() {
                                             : 'bg-background border text-foreground rounded-tl-none'
                                             }`}>
 
+                                            {/* TEXTO */}
                                             {msg.type === 'text' && (
                                                 <p className="leading-relaxed font-medium whitespace-pre-wrap">
                                                     {msg.text}
@@ -334,23 +338,42 @@ export function FloatingChat() {
                                                 </p>
                                             )}
 
+                                            {/* IMAGEM */}
                                             {msg.type === 'image' && (
-                                                <img src={msg.image} className="rounded-lg max-h-60 w-full object-cover" alt="Enviada" />
+                                                <img src={msg.image} className="rounded-lg max-h-60 w-full object-cover cursor-pointer" alt="Enviada" />
                                             )}
 
+                                            {/* ÁUDIO */}
                                             {msg.type === 'audio' && (
                                                 <audio src={msg.audio} controls className="w-48 h-8 brightness-95" />
                                             )}
 
-                                            {/* Opção de deletar apenas para mensagens do próprio cliente */}
+                                            {/* --- BOTÕES DE AÇÃO (Aparecem no hover) --- */}
                                             {msg.sender === 'client' && (
-                                                <div className="absolute -left-12 top-1/2 -translate-y-1/2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button onClick={() => deleteMessage(userId, msg.id)} className="p-1.5 bg-background border rounded-full text-red-500 hover:bg-red-50">
+                                                <div className="absolute -left-16 top-1/2 -translate-y-1/2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity pr-2">
+                                                    {/* Botão Deletar */}
+                                                    <button
+                                                        onClick={() => deleteMessage(userId, msg.id)}
+                                                        className="p-1.5 bg-white border rounded-full text-red-500 hover:bg-red-50 shadow-sm"
+                                                        title="Apagar"
+                                                    >
                                                         <Trash2 size={12} />
                                                     </button>
+
+                                                    {/* Botão Editar (Só aparece se for texto) */}
+                                                    {msg.type === 'text' && (
+                                                        <button
+                                                            onClick={() => startEditing(msg)}
+                                                            className="p-1.5 bg-white border rounded-full text-blue-500 hover:bg-blue-50 shadow-sm"
+                                                            title="Editar"
+                                                        >
+                                                            <Pencil size={12} />
+                                                        </button>
+                                                    )}
                                                 </div>
                                             )}
 
+                                            {/* TIMESTAMP E CHECK */}
                                             <div className={`text-[9px] mt-1 flex items-center gap-1 ${msg.sender === 'client' ? 'justify-end text-white/70' : 'text-muted-foreground'}`}>
                                                 {msg.timestamp} {msg.sender === 'client' && <CheckCheck size={10} />}
                                             </div>
@@ -358,7 +381,7 @@ export function FloatingChat() {
                                     </div>
                                 ))}
 
-                                {/* ADICIONE ISSO AQUI: Indicador de Admin digitando */}
+                                {/* INDICADOR DE DIGITANDO */}
                                 {isAdminTyping && (
                                     <div className="flex items-center gap-2 animate-pulse ml-2 mb-4">
                                         <div className="flex gap-1">
