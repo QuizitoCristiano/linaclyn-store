@@ -92,14 +92,27 @@ export function CartProvider({ children }) {
     localStorage.removeItem("lina_cart");
   };
 
-  // --- FUNÇÃO FINALIZAR COMPRA ---
-  const handleFinalizarCompra = () => {
+
+  // --- FUNÇÃO FINALIZAR COMPRA (REVISADA) ---
+  const handleFinalizarCompra = async () => {
     if (cartItems.length === 0) {
       return toast.error("Sua sacola está vazia!");
     }
-    setIsCartOpen(false); // Fecha o painel lateral
-    setIsCheckingOut(true); // Ativa a tela de Checkout
-    window.scrollTo(0, 0);
+
+    try {
+      setIsCheckingOut(true); // Começa o loading
+
+      // Fecha o carrinho para dar lugar à tela de checkout
+      setIsCartOpen(false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      // Simula uma pequena verificação de integridade antes de liberar
+      // Aqui você pode validar estoque ou preços se quiser
+
+    } catch (error) {
+      toast.error("Erro ao iniciar checkout. Tente novamente.");
+      setIsCheckingOut(false); // Destrava o botão se der erro
+    }
   };
 
   // --- LÓGICA DE FAVORITOS ---

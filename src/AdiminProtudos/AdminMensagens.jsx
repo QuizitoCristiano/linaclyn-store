@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 export default function AdminMensagens() {
-    const { allChats, sendMessage, deleteMessage, editMessage, updateTypingStatus } = useChat();
+    const { allChats, sendMessage, deleteMessage, editMessage, updateTypingStatus, isOfficeHours } = useChat();
     const [selectedUserId, setSelectedUserId] = useState(null);
     const [reply, setReply] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
@@ -60,26 +60,70 @@ export default function AdminMensagens() {
 
     // Lista de contatos formatada
     // Lista de contatos formatada (Versão 2.0 - Inteligente e Segura)
+    // const contactList = React.useMemo(() => {
+    //     return Object.keys(allChats).map(uid => {
+    //         const chatData = allChats[uid];
+    //         const messages = Array.isArray(chatData) ? chatData : (chatData.messages || []);
+    //         const lastMessage = messages[messages.length - 1];
+
+    //         const clientName = chatData.clientName ||
+    //             messages.find(m => m.senderName)?.senderName ||
+    //             (uid.startsWith('lead_') ? "Visitante" : "Cliente");
+
+    //         const lastUpdate = lastMessage?.timestamp?.toMillis?.() || lastMessage?.timestamp || 0;
+
+    //         return {
+    //             uid,
+    //             name: clientName,
+    //             lastMsg: lastMessage?.type === 'image' ? '📷 Foto' :
+    //                 lastMessage?.type === 'audio' ? '🎤 Áudio' :
+    //                     lastMessage?.text || "Nova conversa",
+    //             time: lastMessage?.timestamp || "",
+    //             isLead: uid.startsWith('lead_'),
+    //             lastUpdateMillis: lastUpdate,
+    //         };
+    //     })
+    //         .filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    //         .sort((a, b) => b.lastUpdateMillis - a.lastUpdateMillis);
+    // }, [allChats, searchTerm]);
+
+    // Lista de contatos formatada (Versão Corrigida - Nome do Cliente sempre fixo)
     const contactList = React.useMemo(() => {
         return Object.keys(allChats).map(uid => {
             const chatData = allChats[uid];
             const messages = Array.isArray(chatData) ? chatData : (chatData.messages || []);
             const lastMessage = messages[messages.length - 1];
 
-            const clientName = chatData.clientName ||
-                messages.find(m => m.senderName)?.senderName ||
-                (uid.startsWith('lead_') ? "Visitante" : "Cliente");
+            // LOGICA DE NOME INFALÍVEL:
+            // 1. Tenta pegar o nome salvo no chatData (se não for "Cliente")
+            // 2. Se for "Cliente", tenta buscar no LocalStorage (caso o user esteja logado no navegador)
+            // 3. Como fallback, usa o que estiver no messages (senderName) desde que não seja o suporte
+            let displayName = chatData.clientName;
 
+
+            // Se o nome for o do suporte ou "Cliente", vamos tentar limpar
+            if (!displayName || displayName === "Cliente" || displayName === "Suporte LinaClyn" || displayName === "LinaClyn Suporte") {
+                const lastMsgName = lastMessage?.senderName;
+
+                // Só aceita o nome da mensagem se NÃO for do suporte
+                if (lastMsgName && !["LinaClyn Suporte", "Suporte LinaClyn", "admin"].includes(lastMsgName)) {
+                    displayName = lastMsgName;
+                } else {
+                    displayName = "Cliente";
+                }
+            }
             const lastUpdate = lastMessage?.timestamp?.toMillis?.() || lastMessage?.timestamp || 0;
+            const respondedByAdmin = lastMessage?.sender === 'admin';
 
             return {
                 uid,
-                name: clientName,
-                lastMsg: lastMessage?.type === 'image' ? '📷 Foto' :
-                    lastMessage?.type === 'audio' ? '🎤 Áudio' :
-                        lastMessage?.text || "Nova conversa",
+                name: displayName,
+                lastMsg: (respondedByAdmin ? "↪️ " : "") + (
+                    lastMessage?.type === 'image' ? '📷 Foto' :
+                        lastMessage?.type === 'audio' ? '🎤 Áudio' :
+                            lastMessage?.text || "Nova conversa"
+                ),
                 time: lastMessage?.timestamp || "",
-                isLead: uid.startsWith('lead_'),
                 lastUpdateMillis: lastUpdate,
             };
         })
@@ -96,7 +140,6 @@ export default function AdminMensagens() {
         const textToSend = reply;
         const currentEditingId = editingId;
 
-        // Limpa estados ANTES para UI parecer mais rápida (Optimistic UI)
         setReply('');
         setEditingId(null);
         isTypingRef.current = false;
@@ -107,7 +150,8 @@ export default function AdminMensagens() {
                 await editMessage(selectedUserId, currentEditingId, textToSend);
             } else {
                 const payload = { text: textToSend, sender: 'admin', type: 'text' };
-                await sendMessage(selectedUserId, payload, "LinaClyn Suporte");
+                // MUDANÇA AQUI: Removemos o terceiro parâmetro "LinaClyn Suporte"
+                await sendMessage(selectedUserId, payload);
             }
         } catch (err) {
             toast.error("Erro ao enviar mensagem");
@@ -144,7 +188,7 @@ export default function AdminMensagens() {
                     image: reader.result,
                     sender: 'admin',
                     type: 'image'
-                }, "Suporte LinaClyn");
+                });
             };
         }
     };
@@ -164,7 +208,7 @@ export default function AdminMensagens() {
                         audio: reader.result,
                         sender: 'admin',
                         type: 'audio'
-                    }, "Suporte LinaClyn");
+                    });
                 };
             };
             mediaRecorder.current.start();
@@ -185,12 +229,30 @@ export default function AdminMensagens() {
     return (
         <div className="flex h-[calc(100vh-140px)] bg-card rounded-3xl overflow-hidden border border-border shadow-2xl font-sans">
 
+
             {/* LISTA DE CONVERSAS (LADO ESQUERDO) */}
             <div className={`${selectedUserId ? 'hidden md:flex' : 'flex'} w-full md:w-80 border-r border-border flex-col bg-background/60 backdrop-blur-xl`}>
+
+                {/* HEADER DA LISTA COM STATUS DE EXPEDIENTE */}
                 <div className="p-6 border-b border-border bg-card/30">
-                    <h2 className="text-xl font-black flex items-center gap-2 mb-4">
-                        <MessageSquare className="text-linaclyn-red" size={24} /> Chats
-                    </h2>
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-xl font-black flex items-center gap-2">
+                            <MessageSquare className="text-linaclyn-red" size={24} /> Chats
+                        </h2>
+
+                        {/* Badge de Status Dinâmico */}
+                        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-all duration-500 ${isOfficeHours()
+                            ? 'bg-green-500/10 border-green-500/20 text-green-500'
+                            : 'bg-zinc-500/10 border-zinc-500/20 text-zinc-400'
+                            }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${isOfficeHours() ? 'bg-green-500 animate-pulse' : 'bg-zinc-500'}`}></span>
+                            <span className="text-[9px] font-black uppercase tracking-widest">
+                                {isOfficeHours() ? "Expediente" : "Offline"}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* BUSCA */}
                     <div className="relative group">
                         <Search className="absolute left-3 top-3 text-muted-foreground" size={18} />
                         <input
@@ -203,6 +265,7 @@ export default function AdminMensagens() {
                     </div>
                 </div>
 
+                {/* LISTAGEM DE CONTATOS */}
                 <div className="flex-1 overflow-y-auto custom-scrollbar">
                     {contactList.length === 0 && (
                         <p className="p-6 text-center text-xs text-muted-foreground">Nenhuma conversa encontrada.</p>
@@ -211,14 +274,20 @@ export default function AdminMensagens() {
                         <div
                             key={contact.uid}
                             onClick={() => setSelectedUserId(contact.uid)}
-                            className={`p-4 flex items-center gap-3 cursor-pointer border-b border-border/10 transition-all ${selectedUserId === contact.uid ? 'bg-linaclyn-red/10 border-l-4 border-l-linaclyn-red' : 'hover:bg-muted/50'}`}
+                            className={`p-4 flex items-center gap-3 cursor-pointer border-b border-border/10 transition-all ${selectedUserId === contact.uid
+                                ? 'bg-linaclyn-red/10 border-l-4 border-l-linaclyn-red'
+                                : 'hover:bg-muted/50'
+                                }`}
                         >
                             <div className="relative">
-                                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-black shrink-0 ${contact.isLead ? 'bg-orange-500' : 'bg-linaclyn-red'}`}>
+                                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-black shrink-0 ${contact.isLead ? 'bg-orange-500' : 'bg-linaclyn-red'
+                                    }`}>
                                     {contact.name.charAt(0)}
                                 </div>
+                                {/* Indicador de Online do Cliente (Pode ser condicional também) */}
                                 <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background animate-pulse"></div>
                             </div>
+
                             <div className="flex-1 min-w-0">
                                 <div className="flex justify-between items-center">
                                     <span className="font-bold text-sm truncate">{contact.name}</span>

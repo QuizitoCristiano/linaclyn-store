@@ -27,6 +27,7 @@ export function ChatProvider({ children }) {
             const isAdmin = user?.email === 'quizitocristiano10@gmail.com';
 
             if (isAdmin) {
+                // --- VISÃO DO ADMINISTRADOR ---
                 const q = query(collection(db, "chats"));
                 return onSnapshot(q, (snapshot) => {
                     const chatsData = {};
@@ -50,10 +51,37 @@ export function ChatProvider({ children }) {
                     setAllChats(chatsData);
                 });
             } else {
+                // --- VISÃO DO CLIENTE ---
                 const leadId = localStorage.getItem('chat_user_id');
                 const activeId = user?.uid || leadId;
 
                 if (activeId) {
+                    // 1. SINCRONIZAÇÃO DE NOME (Busca na coleção 'users' e limpa o "Cliente")
+                    const syncName = async () => {
+                        try {
+                            const userDoc = await getDoc(doc(db, "users", activeId));
+                            if (userDoc.exists()) {
+                                const realName = userDoc.data().name || userDoc.data().displayName;
+                                if (realName) {
+                                    // Salva no LocalStorage para uso imediato
+                                    localStorage.setItem('chat_user_name', realName);
+
+                                    // Corrige o documento do chat no Firestore se estiver como "Cliente"
+                                    const chatRef = doc(db, "chats", activeId);
+                                    const chatSnap = await getDoc(chatRef);
+                                    if (chatSnap.exists() && chatSnap.data().clientName === "Cliente") {
+                                        await updateDoc(chatRef, { clientName: realName });
+                                    }
+                                }
+                            }
+                        } catch (err) {
+                            console.error("Erro ao sincronizar nome:", err);
+                        }
+                    };
+
+                    syncName();
+
+                    // 2. ESCUTA DAS MENSAGENS EM TEMPO REAL
                     const docRef = doc(db, "chats", activeId);
                     return onSnapshot(docRef, (snapshot) => {
                         if (snapshot.exists()) {
@@ -80,23 +108,37 @@ export function ChatProvider({ children }) {
 
     // --- LÓGICA DE SEGURANÇA E MENSAGENS ---
 
-    // 1. EDITAR MENSAGEM (Com validação de existência)
+    // 1. EDITAR MENSAGEM (Com Validação de Integridade)
     const editMessage = async (userId, messageId, newText) => {
         if (!newText.trim()) return;
+
         const chatData = allChats[userId];
         if (!chatData?.messages) return;
 
+        // Mapeia as mensagens e aplica a alteração apenas no ID correto
         const updatedMessages = chatData.messages.map(msg =>
-            msg.id === messageId ? { ...msg, text: newText, isEdited: true } : msg
+            msg.id === messageId
+                ? {
+                    ...msg,
+                    text: newText,
+                    isEdited: true, // Aciona a flag de segurança de que o dado original mudou
+                    editedAt: new Date().toISOString() // Registra o momento exato da alteração para auditoria
+                }
+                : msg
         );
 
         try {
-            await updateDoc(doc(db, "chats", userId), {
+            const chatRef = doc(db, "chats", userId);
+
+            // Atualização atômica no Firestore
+            await updateDoc(chatRef, {
                 messages: updatedMessages,
-                lastUpdate: serverTimestamp()
+                lastUpdate: serverTimestamp() // Marca a última atividade no documento
             });
+
+            console.log(`Segurança: Mensagem ${messageId} editada e integrada com sucesso.`);
         } catch (error) {
-            console.error("Erro na edição segura:", error);
+            console.error("Erro crítico na integridade da edição:", error);
             throw error;
         }
     };
@@ -153,87 +195,180 @@ export function ChatProvider({ children }) {
     };
 
     // 5. ENVIAR MENSAGEM (Base)
+
+
+
+
     // const sendMessage = async (chatId, messageData, displayName) => {
     //     if (!chatId) return;
 
-    //     let finalName = displayName?.trim() || "Cliente";
-    //     if (messageData.sender === 'admin') finalName = "Suporte LinaClyn";
-
-    //     const newMessage = {
-    //         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    //         text: messageData.text || "",
-    //         sender: messageData.sender,
-    //         senderName: finalName,
-    //         type: messageData.type || 'text',
-    //         image: messageData.image || null,
-    //         audio: messageData.audio || null,
-    //         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    //         createdAt: new Date().toISOString()
-    //     };
-
-    //     const chatRef = doc(db, "chats", chatId);
-    //     const updateData = {
-    //         messages: arrayUnion(newMessage),
-    //         lastUpdate: serverTimestamp(),
-    //         userId: chatId,
-    //         ...(messageData.sender === 'client' && { clientName: finalName })
-    //     };
-
     //     try {
-    //         await updateDoc(chatRef, updateData);
+    //         // 1. GESTÃO DE NOME (Identidade Segura)
+    //         let finalName = displayName?.trim();
+    //         if (!finalName) finalName = localStorage.getItem('chat_user_name');
+
+    //         if (messageData.sender === 'admin') {
+    //             finalName = "Suporte LinaClyn";
+    //         }
+
+    //         const chatRef = doc(db, "chats", chatId);
+    //         const chatSnap = await getDoc(chatRef);
+    //         const chatData = chatSnap.exists() ? chatSnap.data() : null;
+
+    //         // 2. TRAVA DE SEGURANÇA INTELIGENTE (Anti-Spam/DoS)
+    //         if (chatData && messageData.isAutoResponse) {
+    //             const messages = chatData.messages || [];
+    //             const lastMsg = messages[messages.length - 1];
+    //             if (lastMsg && lastMsg.isAutoResponse) {
+    //                 console.warn("Segurança: Bloqueada resposta automática duplicada.");
+    //                 return;
+    //             }
+    //         }
+
+    //         // 3. ESTRUTURA DA MENSAGEM (Com Auditoria e Integridade)
+    //         const newMessage = {
+    //             id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    //             text: messageData.text || "",
+    //             sender: messageData.sender,
+    //             senderName: finalName || "Cliente",
+    //             type: messageData.type || 'text',
+    //             image: messageData.image || null,
+    //             audio: messageData.audio || null,
+    //             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    //             createdAt: new Date().toISOString(),
+
+    //             // --- NOVAS FUNCIONALIDADES DE SEGURANÇA E ESTADO ---
+    //             isAutoResponse: messageData.isAutoResponse || false, // Separação lógica de bot/humano
+    //             isEdited: false, // Flag de integridade: inicia sempre como íntegra (falso)
+    //             status: 'sent'   // Rastreabilidade: status inicial da transmissão
+    //         };
+
+    //         // 4. ATUALIZAÇÃO NO FIRESTORE (Persistência Segura)
+    //         if (chatSnap.exists()) {
+    //             await updateDoc(chatRef, {
+    //                 messages: arrayUnion(newMessage),
+    //                 lastUpdate: serverTimestamp(),
+    //                 userId: chatId,
+    //                 ...(messageData.sender === 'client' && { clientName: finalName })
+    //             });
+    //         } else {
+    //             await setDoc(chatRef, {
+    //                 userId: chatId,
+    //                 clientName: finalName || "Cliente",
+    //                 messages: [newMessage],
+    //                 lastUpdate: serverTimestamp(),
+    //                 createdAt: serverTimestamp(),
+    //                 typingAdmin: false,
+    //                 typingClient: false
+    //             });
+    //         }
+
     //     } catch (error) {
-    //         await setDoc(chatRef, {
-    //             ...updateData,
-    //             messages: [newMessage],
-    //             createdAt: serverTimestamp(),
-    //             typingAdmin: false,
-    //             typingClient: false
-    //         });
+    //         // Log de erro protegido para análise de falhas
+    //         console.error("Erro crítico no envio de mensagem:", error);
+    //         throw error;
     //     }
     // };
 
     const sendMessage = async (chatId, messageData, displayName) => {
         if (!chatId) return;
 
-        let finalName = displayName?.trim() || "Cliente";
-        if (messageData.sender === 'admin') finalName = "Suporte LinaClyn";
-
-        const newMessage = {
-            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            text: messageData.text || "",
-            sender: messageData.sender,
-            senderName: finalName,
-            type: messageData.type || 'text',
-            image: messageData.image || null,
-            audio: messageData.audio || null,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            createdAt: new Date().toISOString()
-        };
-
-        const chatRef = doc(db, "chats", chatId);
-
         try {
-            // Tenta atualizar se o chat já existir
-            await updateDoc(chatRef, {
-                messages: arrayUnion(newMessage),
-                lastUpdate: serverTimestamp(),
-                userId: chatId,
-                ...(messageData.sender === 'client' && { clientName: finalName })
-            });
+            // 1. GESTÃO DE IDENTIDADE (Identidade Segura)
+            let finalName = displayName?.trim();
+            if (!finalName) finalName = localStorage.getItem('chat_user_name');
+
+            if (messageData.sender === 'admin') {
+                finalName = "Suporte LinaClyn";
+            }
+
+            const chatRef = doc(db, "chats", chatId);
+            const chatSnap = await getDoc(chatRef);
+            const chatData = chatSnap.exists() ? chatSnap.data() : null;
+
+            // 2. CONTROLE DE FLUXO LÓGICO (Prevenção de DoS/Spam de Bot)
+            if (chatData && messageData.isAutoResponse) {
+                const messages = chatData.messages || [];
+                const lastMsg = messages[messages.length - 1];
+                if (lastMsg && lastMsg.isAutoResponse) {
+                    console.warn("Segurança: Bloqueada resposta automática duplicada.");
+                    return;
+                }
+            }
+
+            // 3. ESTRUTURA DA MENSAGEM COM AUDITORIA (Integridade do Dado)
+            const newMessage = {
+                id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                text: messageData.text || "",
+                sender: messageData.sender,
+                senderName: finalName || "Cliente",
+                type: messageData.type || 'text',
+                image: messageData.image || null,
+                audio: messageData.audio || null,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                createdAt: new Date().toISOString(),
+
+                // --- ATRIBUTOS DE SEGURANÇA E ESTADO ---
+                isAutoResponse: messageData.isAutoResponse || false, // Identificação de origem lógica
+                isEdited: false, // Flag de integridade original
+                status: 'sent'   // Rastreabilidade de ciclo de vida
+            };
+
+            // 4. PERSISTÊNCIA SEGURA NO FIRESTORE
+            if (chatSnap.exists()) {
+                await updateDoc(chatRef, {
+                    messages: arrayUnion(newMessage),
+                    lastUpdate: serverTimestamp(),
+                    userId: chatId,
+                    ...(messageData.sender === 'client' && { clientName: finalName })
+                });
+            } else {
+                await setDoc(chatRef, {
+                    userId: chatId,
+                    clientName: finalName || "Cliente",
+                    messages: [newMessage],
+                    lastUpdate: serverTimestamp(),
+                    createdAt: serverTimestamp(),
+                    typingAdmin: false,
+                    typingClient: false
+                });
+            }
+
         } catch (error) {
-            // Se o chat NÃO existir (erro cai aqui), criamos do zero.
-            // IMPORTANTE: Aqui NÃO usamos arrayUnion, passamos o array [newMessage] direto.
-            await setDoc(chatRef, {
-                userId: chatId,
-                clientName: messageData.sender === 'client' ? finalName : "Novo Cliente",
-                messages: [newMessage], // Array simples, sem funções do Firebase
-                lastUpdate: serverTimestamp(),
-                createdAt: serverTimestamp(),
-                typingAdmin: false,
-                typingClient: false
-            });
+            // Log de erro para análise forense/suporte técnica
+            console.error("Erro crítico no envio de mensagem:", error);
+            throw error;
         }
     };
+
+    const isOfficeHours = () => {
+        const agora = new Date();
+        const horaAtual = agora.getHours();
+        const minutoAtual = agora.getMinutes();
+        const diaSemana = agora.getDay(); // 0 = Domingo, 1 = Segunda, ..., 6 = Sábado
+
+        // Converte tudo para minutos para facilitar a comparação precisa
+        const tempoAtual = horaAtual * 60 + minutoAtual;
+        const abertura = 8 * 60; // 08:00
+        const fechamentoSemana = 18 * 60; // 18:00
+        const fechamentoSabado = 12 * 60;  // 12:00
+
+        //Domingo: Fechado
+        if (diaSemana === 0) {
+            return false;
+        };
+
+        // Sábado: 08:00 às 12:00
+        if (diaSemana === 6) {
+            return tempoAtual >= abertura && tempoAtual < fechamentoSabado;
+        };
+
+        // Segunda a Sexta: 08:00 às 18:00
+        return tempoAtual >= abertura && tempoAtual < fechamentoSemana;
+    }
+
+
+
 
     return (
         <ChatContext.Provider value={{
@@ -242,7 +377,8 @@ export function ChatProvider({ children }) {
             sendImageMessage,
             deleteMessage,
             editMessage,
-            updateTypingStatus
+            updateTypingStatus,
+            isOfficeHours
         }}>
             {children}
         </ChatContext.Provider>

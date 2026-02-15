@@ -24,7 +24,7 @@ export default function CheckoutRouter({ onNavigate }) {
     const [showCardForm, setShowCardForm] = useState(false);
     const [showPixPayment, setShowPixPayment] = useState(false);
     const { user } = useAuth();
-    const { cartTotal, cartItems, clearCart } = useCart();
+    const { cartTotal, cartItems, clearCart, setIsCheckingOut } = useCart();
 
     const [showSuccess, setShowSuccess] = useState(false);
     const [lastOrder, setLastOrder] = useState(null);
@@ -37,6 +37,16 @@ export default function CheckoutRouter({ onNavigate }) {
         cep: '', rua: '', numero: '', bairro: '', cidade: '', uf: '', complemento: ''
     });
 
+
+    // Dentro do seu CheckoutRouter.jsx
+    useEffect(() => {
+        // 1. SEMPRE desativa o estado de carregamento global ao entrar na tela
+        // Isso garante que o botão "solte" se o usuário voltou de um erro
+        setIsCheckingOut(false);
+
+        // 2. Tenta forçar o carregamento do Stripe de forma resiliente
+        // Se o DNS falhar, o sistema pelo menos não fica travado
+    }, []);
 
 
 

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
     MessageCircle, X, Send, Mic, Image as ImageIcon,
-    Trash2, Square, User, Phone, CheckCheck, Pencil, Undo2
+    Trash2, Square, User, Phone, CheckCheck, Pencil, Undo2, Check,
 } from 'lucide-react';
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
@@ -14,7 +14,7 @@ export function FloatingChat() {
     const [isRecording, setIsRecording] = useState(false);
     const [editingMsg, setEditingMsg] = useState(null); // Para controlar qual mensagem está sendo editada
     const { user } = useAuth();
-    const { allChats, sendMessage, sendImageMessage, deleteMessage, editMessage, updateTypingStatus } = useChat();
+    const { allChats, sendMessage, sendImageMessage, deleteMessage, editMessage, updateTypingStatus, isOfficeHours } = useChat();
     const [leadData, setLeadData] = useState({ nome: '', whatsapp: '' });
     const [hasIdentified, setHasIdentified] = useState(false);
 
@@ -34,8 +34,25 @@ export function FloatingChat() {
 
     // 1. DEFINIÇÃO DO ID ÚNICO (Simplificada e Segura)
     // Prioridade: 1º UID do Firebase (se logado), 2º ID de Lead (se identificado)
-    const savedId = localStorage.getItem('chat_user_id');
-    const userId = user?.uid || savedId || (hasIdentified ? `lead_${leadData.whatsapp.replace(/\D/g, '')}` : null);
+    const [userId, setUserId] = useState(null);
+    useEffect(() => {
+        const savedId = localStorage.getItem('chat_user_id');
+        let novoId = null;
+
+        if (user?.uid) {
+            novoId = user.uid;
+        } else if (savedId) {
+            novoId = savedId;
+        } else if (hasIdentified && leadData.whatsapp) {
+            novoId = `lead_${leadData.whatsapp.replace(/\D/g, '')}`;
+        }
+
+        // SÓ ATUALIZA SE O ID FOR DIFERENTE DO QUE JÁ ESTÁ NO ESTADO
+        if (novoId && novoId !== userId) {
+            setUserId(novoId);
+        }
+    }, [user, hasIdentified, leadData.whatsapp, userId]); // Adicionamos o userId aqui para comparação
+
 
     //2. BUSCA O HISTÓRICO REAL DO FIREBASE
     //Se não houver histórico ainda, mostra a mensagem de boas - vindas padrão
@@ -118,12 +135,38 @@ export function FloatingChat() {
 
     // --- 1. FUNÇÃO DE ENVIAR TEXTO ---
     // Modifique o seu handleSend para suportar edição:
+    // const handleSend = async () => {
+    //     if (!message.trim() || !userId) return;
+
+    //     if (editingMsg) {
+    //         // Lógica de EDITAR
+    //         try {
+    //             await editMessage(userId, editingMsg.id, message);
+    //             setEditingMsg(null);
+    //             setMessage('');
+    //             toast.success("Mensagem editada!");
+    //         } catch (error) {
+    //             toast.error("Erro ao editar.");
+    //         }
+    //     } else {
+    //         // Lógica de ENVIAR (seu código atual...)
+    //         const currentName = leadData.nome?.trim() || localStorage.getItem('chat_user_name') || user?.displayName || "Cliente";
+    //         sendMessage(userId, {
+    //             text: message,
+    //             sender: 'client',
+    //             senderName: currentName,
+    //             type: 'text'
+    //         }, currentName);
+    //         setMessage('');
+    //     }
+    // };
+
     const handleSend = async () => {
         if (!message.trim() || !userId) return;
 
         if (editingMsg) {
-            // Lógica de EDITAR
             try {
+                // Usa o editMessage que você já tem
                 await editMessage(userId, editingMsg.id, message);
                 setEditingMsg(null);
                 setMessage('');
@@ -132,19 +175,50 @@ export function FloatingChat() {
                 toast.error("Erro ao editar.");
             }
         } else {
-            // Lógica de ENVIAR (seu código atual...)
-            const currentName = leadData.nome?.trim() || localStorage.getItem('chat_user_name') || user?.displayName || "Cliente";
-            sendMessage(userId, {
+            const currentName = leadData.nome?.trim() ||
+                localStorage.getItem('chat_user_name') ||
+                user?.displayName ||
+                "Cliente";
+
+            const payload = {
                 text: message,
                 sender: 'client',
                 senderName: currentName,
-                type: 'text'
-            }, currentName);
+                type: 'text',
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            };
+
+            // 1. Envia a mensagem do cliente
+            await sendMessage(userId, payload, currentName);
             setMessage('');
+
+            // 2. VERIFICAÇÃO DE HORÁRIO COMERCIAL
+            if (!isOfficeHours()) {
+                // DICA: Verifique se já enviamos uma resposta automática nos últimos 5 minutos
+                // ou se o chat acabou de começar para não floodar o cliente.
+
+                setTimeout(async () => {
+                    // Checa se o chatHistory já tem uma auto-resposta recente para não repetir
+                    const jaRespondeu = chatHistory.some(m => m.isAutoResponse && m.sender === 'admin');
+
+                    if (!jaRespondeu) {
+                        const diaAtual = new Date().getDay();
+                        const voltaTexto = (diaAtual === 6 || diaAtual === 0) ? "segunda-feira às 08:00" : "amanhã às 08:00";
+
+                        const autoResponse = {
+                            text: `Olá ${currentName}! 👋 Recebemos sua mensagem, mas no momento nosso suporte está offline.\n\nHorários:\n• Seg a Sex: 08h às 18h\n• Sáb: 08h às 12h\n\nRetornaremos ${voltaTexto}.`,
+                            sender: 'admin',
+                            type: 'text',
+                            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                            isAutoResponse: true
+                        };
+
+                        await sendMessage(userId, autoResponse, currentName);
+                    }
+                }, 1500);
+            }
         }
     };
-
-
     // --- 2. FUNÇÃO DE ENVIAR IMAGEM (Refatorada para usar o Contexto) ---
     const handleImageUpload = async (e) => {
         const file = e.target.files[0];
@@ -269,9 +343,7 @@ export function FloatingChat() {
                                 <p className="text-[10px] text-white/80">Online agora</p>
                             </div>
                         </div>
-                        <button onClick={handleLogoutChat} title="Sair do chat" className="bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors mr-1">
-                            <Trash2 size={16} />
-                        </button>
+
                         <button onClick={() => setIsOpen(false)} className="bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors">
                             <X size={18} />
                         </button>
@@ -396,6 +468,23 @@ export function FloatingChat() {
                                 )}
                             </div>
 
+                            {editingMsg && (
+                                <div className="px-4 py-2 bg-zinc-100 dark:bg-zinc-800 border-t flex justify-between items-center animate-in slide-in-from-bottom-2">
+                                    <div className="flex items-center gap-2">
+                                        <Pencil size={12} className="text-blue-500" />
+                                        <span className="text-[11px] font-medium italic text-muted-foreground">Editando sua mensagem...</span>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            setEditingMsg(null);
+                                            setMessage('');
+                                        }}
+                                        className="text-[10px] font-bold text-linaclyn-red hover:bg-red-50 p-1 rounded transition-colors flex items-center gap-1"
+                                    >
+                                        <X size={12} /> CANCELAR
+                                    </button>
+                                </div>
+                            )}
 
                             {/* INPUT DE MENSAGENS */}
                             <div className="p-4 bg-background border-t">
@@ -412,7 +501,6 @@ export function FloatingChat() {
                                         type="text"
                                         value={message}
                                         disabled={isRecording}
-                                        // MUDANÇA AQUI: O onChange só altera o estado. O useEffect cuida do resto!
                                         onChange={(e) => setMessage(e.target.value)}
                                         onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                                         placeholder={isRecording ? "Gravando áudio..." : "Escreva uma mensagem..."}
@@ -421,7 +509,8 @@ export function FloatingChat() {
 
                                     {message.trim() ? (
                                         <button onClick={handleSend} className="bg-linaclyn-red text-white p-2 rounded-xl hover:scale-105 transition-transform shadow-md">
-                                            <Send size={16} />
+                                            {/* Ícone muda se estiver editando para dar feedback visual */}
+                                            {editingMsg ? <Check size={16} /> : <Send size={16} />}
                                         </button>
                                     ) : (
                                         <button
