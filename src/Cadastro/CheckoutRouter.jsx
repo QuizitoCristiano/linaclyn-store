@@ -5,12 +5,14 @@ import { MapPin, Truck, ShoppingBag, CreditCard, ArrowRight, ChevronLeft, Zap, S
 import { db } from "@/services/config";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { toast } from 'sonner';
-import SuccessModalIem from './SuccessModal';
+import { useNavigate } from 'react-router-dom';
+
 import CardSecureForm from './CardSecureForm';
 import PixSecurePayment from './PixSecurePayment';
 
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
+import SuccessModalIem from './SuccessModal';
 
 // Inicializa o Stripe com sua chave do .env
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY)
@@ -20,7 +22,9 @@ const formatCPF = (v) => v.replace(/\D/g, "").replace(/(\d{3})(\d)/, "$1.$2").re
 const formatCEP = (v) => v.replace(/\D/g, "").replace(/^(\d{5})(\d)/, "$1-$2").substring(0, 9);
 const formatPhone = (v) => v.replace(/\D/g, "").replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{5})(\d)/, "$1-$2").substring(0, 15);
 
-export default function CheckoutRouter({ onNavigate }) {
+export default function CheckoutRouter() {
+    const navigate = useNavigate();
+
     const [showCardForm, setShowCardForm] = useState(false);
     const [showPixPayment, setShowPixPayment] = useState(false);
     const { user } = useAuth();
@@ -37,18 +41,10 @@ export default function CheckoutRouter({ onNavigate }) {
         cep: '', rua: '', numero: '', bairro: '', cidade: '', uf: '', complemento: ''
     });
 
-
-    // Dentro do seu CheckoutRouter.jsx
-    useEffect(() => {
-        // 1. SEMPRE desativa o estado de carregamento global ao entrar na tela
-        // Isso garante que o botão "solte" se o usuário voltou de um erro
-        setIsCheckingOut(false);
-
-        // 2. Tenta forçar o carregamento do Stripe de forma resiliente
-        // Se o DNS falhar, o sistema pelo menos não fica travado
-    }, []);
-
-
+    const handleCloseSuccess = () => {
+        setShowSuccess(false); // Fecha o modal
+        navigate('/');         // Redireciona para a Home
+    };
 
     // --- CARREGAMENTO ROBUSTO DE DADOS ---
     useEffect(() => {
@@ -101,12 +97,41 @@ export default function CheckoutRouter({ onNavigate }) {
         }
     };
 
+
+    const validateCPF = (cpf) => {
+        const cleanCPF = cpf.replace(/\D/g, "");
+        if (cleanCPF.length !== 11 || !!cleanCPF.match(/(\d)\1{10}/)) return false;
+
+        let sum = 0;
+        let remainder;
+
+        // Validação do primeiro dígito verificador
+        for (let i = 1; i <= 9; i++) sum += parseInt(cleanCPF.substring(i - 1, i)) * (11 - i);
+        remainder = (sum * 10) % 11;
+        if (remainder === 10 || remainder === 11) remainder = 0;
+        if (remainder !== parseInt(cleanCPF.substring(9, 10))) return false;
+
+        sum = 0;
+        // Validação do segundo dígito verificador
+        for (let i = 1; i <= 10; i++) sum += parseInt(cleanCPF.substring(i - 1, i)) * (12 - i);
+        remainder = (sum * 10) % 11;
+        if (remainder === 10 || remainder === 11) remainder = 0;
+        if (remainder !== parseInt(cleanCPF.substring(10, 11))) return false;
+
+        return true;
+    };
+
     const nextStep = () => {
         // 1. Validação de Dados Pessoais
         if (step === 'identification') {
             if (!formData.email.includes('@')) return toast.error("E-mail inválido!");
-            if (formData.nome.length < 3) return toast.error("Nome muito curto!");
-            if (formData.cpf.replace(/\D/g, "").length !== 11) return toast.error("CPF deve ter 11 dígitos!");
+            if (formData.nome.trim().split(" ").length < 2) return toast.error("Insira seu nome completo!");
+
+            // DEFESA ATIVADA: Validação matemática do CPF
+            if (!validateCPF(formData.cpf)) {
+                return toast.error("CPF inválido! Verifique os números.");
+            }
+
             if (formData.whatsapp.replace(/\D/g, "").length < 10) return toast.error("WhatsApp inválido!");
         }
 
@@ -133,22 +158,28 @@ export default function CheckoutRouter({ onNavigate }) {
     };
 
 
-
     const finalizarPedido = async (metodo, stripeData = null) => {
+        if (loading) return;
         if (cartItems.length === 0) return toast.error("Carrinho vazio!");
+
+        if (metodo === 'CARTAO' && !stripeData) {
+            setLoading(false);
+            setIsCheckingOut(false);
+            return;
+        }
+
         setLoading(true);
+        setIsCheckingOut(true);
 
         try {
-            // Gera um ID como LINA-1770554041185-R82 (Timestamp + 3 caracteres aleatórios)
             const orderId = `LINA-${Date.now()}-${Math.random().toString(36).substr(2, 3).toUpperCase()}`;
             const userId = user ? user.uid : (formData?.email?.toLowerCase().trim() || "convidado");
 
-            // --- MAPEAMENTO PARA O MODAL (Nomes em Inglês para bater com SuccessModalIem) ---
             const secureItems = cartItems.map(item => ({
                 id: item.id || '',
-                name: item.name || item.nome || 'Produto', // Garante o .name para o Modal
-                price: Number(item.price || item.preco || 0), // Garante o .price como número
-                quantity: Number(item.quantity || 1) // Garante o .quantity como número
+                name: item.name || item.nome || 'Produto',
+                price: Number(item.price || item.preco || 0),
+                quantity: Number(item.quantity || 1)
             }));
 
             const secureCustomerData = {
@@ -161,14 +192,27 @@ export default function CheckoutRouter({ onNavigate }) {
             const orderData = {
                 orderId,
                 userId,
-                customer: secureCustomerData,
+                customer: {
+                    nome: formData.nome.trim(),
+                    email: formData.email.toLowerCase().trim(),
+                    cpf: formData.cpf.replace(/\D/g, ""),
+                    whatsapp: formData.whatsapp.replace(/\D/g, ""),
+                    endereco: {
+                        cep: formData.cep.replace(/\D/g, ""),
+                        rua: formData.rua,
+                        numero: formData.numero,
+                        bairro: formData.bairro,
+                        cidade: formData.cidade,
+                        uf: formData.uf,
+                        complemento: formData.complemento
+                    }
+                },
                 items: secureItems,
+                frete: Number(frete),
                 total: Number(totalFinal),
                 metodoPagamento: metodo,
-                stripePaymentId: stripeData?.id || null,
                 status: metodo === 'PIX' ? 'aguardando_pagamento' : 'pago',
                 createdAt: serverTimestamp(),
-                plataforma: 'web'
             };
 
             // 1. Salva no Firestore
@@ -184,24 +228,30 @@ export default function CheckoutRouter({ onNavigate }) {
             }
 
             // --- SUCESSO ---
-            setLastOrder(orderData); // O modal vai receber esses dados "limpos"
+
+            // Criamos o objeto especial para a interface (Garante Confete e Dados Limpos)
+            const orderToDisplay = {
+                ...orderData,
+                isNew: true,
+                renderId: Date.now()
+            };
+
+            setLastOrder(orderToDisplay);
             setShowSuccess(true);
+
             if (clearCart) clearCart();
 
             toast.success(metodo === 'PIX' ? "PIX Gerado!" : "Pagamento Aprovado!");
 
         } catch (error) {
-            console.error("Erro no Checkout:", error);
-            toast.error("Erro ao processar transação.");
+            console.error("ERRO NO FIREBASE:", error);
+            toast.error(`Erro: ${error.code || error.message}`);
         } finally {
             setLoading(false);
+            setIsCheckingOut(false);
+            console.log("🏁 Checkout finalizado. Sistema pronto para novo uso.");
         }
     };
-
-
-
-
-
 
     const inputStyle = "w-full p-4 bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-white border border-zinc-300 dark:border-white/10 rounded-2xl outline-none focus:border-linaclyn-red transition-all placeholder:text-zinc-500";
 
@@ -372,7 +422,7 @@ export default function CheckoutRouter({ onNavigate }) {
             </div>
 
             {showSuccess && lastOrder && (
-                <SuccessModalIem orderData={lastOrder} onHighlightClose={() => { setShowSuccess(false); onNavigate('home'); }} />
+                <SuccessModalIem orderData={lastOrder} onHighlightClose={handleCloseSuccess} />
             )}
         </>
     );

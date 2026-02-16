@@ -6,21 +6,11 @@ import { InteractiveShowcase } from "./InteractiveShowcase";
 import { VitrineProdutos } from "@/components/ui/VitrineProdutos";
 import { PaginaVitrineDinamica } from "@/components/ui/PaginaVitrineDinamica";
 import { ManifestoLinaClyn } from "@/components/ui/ManifestoLinaClyn";
-import SuccessModalIem from "@/Cadastro/SuccessModal";
 
 export default function ClientHome() {
 
-  const [showTeste, setShowTeste] = useState(true); // Controla a exibição do modal
 
-  // Dados de teste para o modal exibir as informações corretamente
-  const mockOrder = {
-    orderId: "LINA-TESTE-2026",
-    items: [
-      { name: "Camiseta LinaClyn Pro", quantity: 2, price: 89.90 },
-      { name: "Boné Performance", quantity: 1, price: 55.00 }
-    ],
-    total: 234.80
-  };
+
 
   return (
     <div className="space-y-6 bg-background min-h-screen">
@@ -60,13 +50,7 @@ export default function ClientHome() {
         <InteractiveShowcase />
       </section>
 
-      {/* Renderização condicional do Modal de Sucesso */}
-      {/* {showTeste && (
-        <SuccessModalIem
-          orderData={mockOrder}
-          onHighlightClose={() => setShowTeste(false)}
-        />
-      )} */}
+
     </div>
   );
 }

@@ -1,4 +1,5 @@
-import React from "react";
+import { useState, useEffect, useRef } from "react";
+import { useInView } from "react-intersection-observer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -15,13 +16,14 @@ import {
   Shirt,
   ShoppingBag,
 } from "lucide-react";
+import { AnimatedCounter } from "./AnimatedSobre";
 
 export default function Sobre() {
   const stats = [
     { icon: Users, value: "50.000+", label: "Clientes Satisfeitos" },
     { icon: Award, value: "1.000+", label: "Produtos Premium" },
     { icon: Star, value: "4.9/5", label: "Avaliação Média" },
-    { icon: TrendingUp, value: "99%", label: "Satisfação" },
+    { icon: TrendingUp, value: "99%", label: "Satisfação Total" },
   ];
 
   const categories = [
@@ -142,26 +144,37 @@ export default function Sobre() {
         </div>
       </section>
 
-      {/* Stats Section */}
-      <section className="py-12 md:py-20 px-4 bg-gradient-to-r from-linaclyn-red to-linaclyn-red-dark text-white">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8">
+      {/* Stats Section - O Vermelho Oficial da LinaClyn (Estilo High Performance) */}
+      {/* Stats Section - Clean & High Impact */}
+      <section className="py-20 bg-linaclyn-red text-white">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {stats.map((stat, index) => (
               <div
                 key={index}
-                className="text-center animate-fade-in-up"
+                className="flex flex-col items-center text-center animate-fade-in-up"
                 style={{ animationDelay: `${index * 0.1}s` }}
               >
-                <div className="inline-flex items-center justify-center w-12 h-12 md:w-16 md:h-16 lg:w-20 lg:h-20 rounded-full bg-white/10 backdrop-blur-sm mb-2 md:mb-4">
-                  <stat.icon className="w-6 h-6 md:w-8 md:h-8 lg:w-10 lg:h-10" />
+                {/* Ícone Clean */}
+                <div className="inline-flex items-center justify-center w-14 h-14 md:w-16 md:h-16 rounded-full bg-white/10 backdrop-blur-sm mb-4">
+                  <stat.icon className="w-6 h-6 md:w-8 md:h-8" />
                 </div>
-                <div className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-1 md:mb-2">{stat.value}</div>
-                <div className="text-white/90 text-xs md:text-sm lg:text-base">{stat.label}</div>
+
+                {/* Número: Forte, mas sem exagero */}
+                <div className="text-4xl md:text-6xl font-extrabold tracking-tight leading-none mb-2">
+                  <AnimatedCounter value={stat.value} />
+                </div>
+
+                {/* Legenda: Simples e Direta */}
+                <div className="text-white/80 text-xs md:text-sm font-bold uppercase tracking-wider">
+                  {stat.label}
+                </div>
               </div>
             ))}
           </div>
         </div>
       </section>
+
 
       {/* Mission & Values */}
       <section className="py-12 md:py-20 px-4 bg-linaclyn-gray-light dark:bg-card/50">

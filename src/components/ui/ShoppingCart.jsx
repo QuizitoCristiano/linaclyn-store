@@ -3,8 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Trash2, CreditCard, Plus, Minus, ShoppingBag, ChevronRight } from "lucide-react";
 import { useCart } from "@/context/CartContext";
+import { useNavigate } from "react-router-dom";
 
 export default function Carrinho() {
+  const navigate = useNavigate();
+
   const {
     cartItems,
     isCartOpen,
@@ -137,8 +140,10 @@ export default function Carrinho() {
               <span className="text-[9px] font-bold text-muted-foreground uppercase">Tributos inclusos</span>
             </div>
 
+
+            {/* NO SEU BOTÃO DE FINALIZAR PEDIDO (Lá embaixo no código): */}
             <Button
-              onClick={handleFinalizarCompra}
+              onClick={() => handleFinalizarCompra(navigate)} // <--- PASSE O NAVIGATE AQUI
               disabled={isCheckingOut}
               className="w-full bg-linaclyn-red hover:bg-linaclyn-red-dark text-white font-black italic uppercase tracking-widest text-[11px] py-7 rounded-lg shadow-lg transition-all group active:scale-95"
             >

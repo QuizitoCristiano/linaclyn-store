@@ -2,18 +2,19 @@ import { useState } from "react";
 import { Shirt, Monitor, Footprints, Watch, Star, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-// Importando sua imagem do Smartwatch
+// Importações de imagens
 import Quizito2 from '../../imagens/Quizito2.png';
 import Mochila_Nike from '../../imagens/Mochila_Nike_Infantil.png';
 import Shoes__Casual1 from '../../imagens/Shoes__Casual1.png';
-import Sports_Casual from '../../imagens/Sports_Casual.png';
 import Projetor_4k from '../../imagens/Projetor_4k.png';
 
-
-
+import { useProducts } from "@/context/ProductContext";
+import { useCart } from "@/context/CartContext";
 
 export function CategoriesAndProducts() {
-    const [activeTab, setActiveTab] = useState(4); // Começa selecionado no Smartwatch
+    const [activeTab, setActiveTab] = useState(4);
+    const { products, loading } = useProducts();
+    const { addToCart } = useCart();
 
     const categories = [
         {
@@ -21,7 +22,7 @@ export function CategoriesAndProducts() {
             name: "Estilo & Moda",
             icon: Shirt,
             product: {
-                name: "Mochila da Nike", // Ajustado para o que está na foto
+                nome: "Mochila da Nike", // Alterado de 'name' para 'nome' para bater com o carrinho
                 price: "299,90",
                 tag: "Nylon Impermeável",
                 img: Mochila_Nike
@@ -32,7 +33,7 @@ export function CategoriesAndProducts() {
             name: "Tecnologia",
             icon: Monitor,
             product: {
-                name: "Projetor Smart 4K Pro", // Ajustado para o projetor branco da foto
+                nome: "Projetor Smart 4K Pro",
                 price: "1.890,00",
                 tag: "Conectividade Ultra",
                 img: Projetor_4k
@@ -43,7 +44,7 @@ export function CategoriesAndProducts() {
             name: "Sport & Fit",
             icon: Footprints,
             product: {
-                name: "Tênis Nike Sport Casual", // Ajustado para o tênis da foto
+                nome: "Tênis Nike Sport Casual",
                 price: "459,00",
                 tag: "Cushion Comfort",
                 img: Shoes__Casual1
@@ -54,7 +55,7 @@ export function CategoriesAndProducts() {
             name: "Acessórios",
             icon: Watch,
             product: {
-                name: "Camisa Gola Alta Premium", // Ajustado para a pessoa de camisa branca (Quizito2)
+                nome: "Camisa Gola Alta Premium",
                 price: "149,90",
                 tag: "Design Minimalista",
                 img: Quizito2
@@ -63,6 +64,29 @@ export function CategoriesAndProducts() {
     ];
 
     const activeCategory = categories.find(c => c.id === activeTab);
+
+    // Função Robusta para converter string de dinheiro em Número
+    const parsePrice = (priceString) => {
+        if (typeof priceString === 'number') return priceString;
+        // Remove pontos de milhar e troca vírgula por ponto
+        return Number(priceString.replace(/\./g, '').replace(',', '.'));
+    };
+
+    // No seu componente CategoriesAndProducts.js
+    const handlePurchase = (categoryProduct, e) => {
+        if (e) e.stopPropagation();
+
+        const productToCart = {
+            id: `static-${activeTab}`,
+            nome: categoryProduct.nome,
+            // Mandamos como string ou número, o Contexto vai resolver e validar!
+            preco: parsePrice(categoryProduct.price),
+            img: categoryProduct.img,
+        };
+
+        addToCart(productToCart);
+    };
+
 
     return (
         <section className="py-12 px-4 md:px-0 max-w-7xl mx-auto">
@@ -84,8 +108,7 @@ export function CategoriesAndProducts() {
                                     : "bg-card border-transparent hover:border-white/10"
                                     }`}
                             >
-                                <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-sm transition-all ${activeTab === cat.id ? "bg-linaclyn-red text-white" : "bg-white text-linaclyn-red"
-                                    }`}>
+                                <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-sm transition-all ${activeTab === cat.id ? "bg-linaclyn-red text-white" : "bg-white text-linaclyn-red"}`}>
                                     <cat.icon size={22} />
                                 </div>
                                 <div className="text-left">
@@ -98,20 +121,18 @@ export function CategoriesAndProducts() {
                     </div>
                 </div>
 
-                {/* LADO DIREITO: Card do Smartwatch com sua Imagem */}
+                {/* LADO DIREITO: Card Ativo */}
                 <div className="w-full lg:w-2/3">
                     <div className="h-full relative overflow-hidden bg-gradient-to-br from-[#0a0a0a] to-[#151515] rounded-[3rem] border border-white/5 shadow-2xl">
                         <div className="flex flex-col md:flex-row h-full">
 
                             {/* Área da Imagem */}
                             <div className="w-full md:w-1/2 p-8 flex items-center justify-center relative overflow-hidden">
-                                {/* Glow de fundo para destacar o relógio */}
                                 <div className="absolute w-48 h-48 bg-linaclyn-red/20 blur-[80px] rounded-full"></div>
-
                                 <img
-                                    key={activeCategory.id} // Reinicia animação ao trocar
+                                    key={activeCategory.id}
                                     src={activeCategory.product.img}
-                                    alt={activeCategory.product.name}
+                                    alt={activeCategory.product.nome}
                                     className="w-full max-w-[280px] h-auto object-contain z-10 drop-shadow-[0_20px_40px_rgba(227,27,35,0.4)] animate-scale-in"
                                 />
                             </div>
@@ -126,7 +147,7 @@ export function CategoriesAndProducts() {
                                 </div>
 
                                 <h3 className="text-3xl md:text-5xl font-black text-white leading-[0.9] mb-2 uppercase italic">
-                                    {activeCategory.product.name}
+                                    {activeCategory.product.nome}
                                 </h3>
                                 <span className="text-linaclyn-red font-black tracking-[0.2em] text-[10px] uppercase mb-8">
                                     {activeCategory.product.tag}
@@ -139,7 +160,10 @@ export function CategoriesAndProducts() {
                                     </span>
                                 </div>
 
-                                <Button className="w-full bg-linaclyn-red hover:bg-linaclyn-red-dark text-white h-16 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-95 shadow-[0_10px_20px_rgba(227,27,35,0.3)]">
+                                <Button
+                                    onClick={(e) => handlePurchase(activeCategory.product, e)}
+                                    className="w-full bg-linaclyn-red hover:bg-linaclyn-red-dark text-white h-16 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-95 shadow-[0_10px_20px_rgba(227,27,35,0.3)]"
+                                >
                                     <Plus size={20} />
                                     Adicionar ao Carrinho
                                 </Button>
@@ -147,7 +171,6 @@ export function CategoriesAndProducts() {
                         </div>
                     </div>
                 </div>
-
             </div>
         </section>
     );

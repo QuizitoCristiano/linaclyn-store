@@ -41,16 +41,36 @@ export function CartProvider({ children }) {
   // --- LÓGICA DO CARRINHO (SISTEMA LINA CLYN) ---
 
   const addToCart = (product) => {
+    // --- BARREIRA DE SEGURANÇA (O ATACANTE PARA AQUI) ---
+
+    // 1. Verifica se o preço existe e é um número válido
+    const precoSeguro = typeof product.preco === 'number' ? product.preco : parseFloat(product.preco);
+
+    if (isNaN(precoSeguro) || precoSeguro <= 0) {
+      console.error("🚫 Bloqueado: Tentativa de adicionar produto com preço inválido.");
+      toast.error("Erro na validação do produto.");
+      return; // Encerra a função e não adiciona ao carrinho
+    }
+
+    // 2. Garante que o ID e Nome não são nulos/vazios
+    if (!product.id || !product.nome) {
+      console.error("🚫 Bloqueado: Dados do produto incompletos.");
+      return;
+    }
+
+    // --- LOGICA DE ADICIONAR (DADOS JÁ LIMPOS E VALIDADOS) ---
     setCartItems((prev) => {
       const exists = prev.find((item) => item.id === product.id);
       if (exists) {
-        toast.info(`Aumentamos a quantidade de ${product.nome || product.name}`);
+        toast.info(`Aumentamos a quantidade de ${product.nome}`);
         return prev.map((item) =>
           item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
         );
       }
-      toast.success(`${product.nome || product.name} adicionado à sacola!`);
-      return [...prev, { ...product, quantity: 1 }];
+
+      toast.success(`${product.nome} adicionado à sacola!`);
+      // Salva no estado com o preço que nós validamos aqui em cima
+      return [...prev, { ...product, preco: precoSeguro, quantity: 1 }];
     });
   };
 
@@ -84,6 +104,12 @@ export function CartProvider({ children }) {
       return acc + preco * item.quantity;
     }, 0);
 
+  // const getCartTotal = () =>
+  //   cartItems.reduce((acc, item) => {
+  //     // Como validamos no addToCart, o item.preco já é garantido como número
+  //     return acc + (item.preco * item.quantity);
+  //   }, 0);
+
   // Variável facilitadora para o CheckoutRouter
   const cartTotal = getCartTotal();
 
@@ -94,26 +120,77 @@ export function CartProvider({ children }) {
 
 
   // --- FUNÇÃO FINALIZAR COMPRA (REVISADA) ---
-  const handleFinalizarCompra = async () => {
+
+
+
+  // const handleFinalizarCompra = async (navigate) => {
+  //   if (cartItems.length === 0) {
+  //     return toast.error("Sua sacola está vazia!");
+  //   }
+
+  //   try {
+  //     setIsCheckingOut(true);
+
+  //     // Verificação de segurança: o navigate existe?
+  //     if (!navigate) {
+  //       throw new Error("Navegação não configurada");
+  //     }
+
+  //     setIsCartOpen(false);
+
+  //     // Pequeno delay para a animação de fechar o carrinho terminar
+  //     setTimeout(() => {
+  //       navigate("/checkout");
+  //     }, 300);
+
+  //   } catch (error) {
+  //     console.error("Erro no redirecionamento:", error);
+  //     toast.error("Erro ao redirecionar. Tente novamente.");
+  //     setIsCheckingOut(false); // Destrava o botão se falhar
+  //   }
+  // };
+
+  const handleFinalizarCompra = async (navigate) => {
     if (cartItems.length === 0) {
       return toast.error("Sua sacola está vazia!");
     }
 
     try {
-      setIsCheckingOut(true); // Começa o loading
+      setIsCheckingOut(true);
 
-      // Fecha o carrinho para dar lugar à tela de checkout
+      // 1. FORMATAR SNAPSHOT PARA O CHECKOUT
+      // Aqui nós preparamos os dados que a tela de endereço vai precisar
+      const checkoutData = {
+        order_items: cartItems.map(item => ({
+          id: item.id,
+          qtd: item.quantity,
+          nome: item.nome,
+          preco_unitario: item.preco // Apenas para mostrar na tela final, o cálculo real será no checkout
+        })),
+        subtotal_visual: cartTotal, // O valor que aparece na foto que você mandou (ex: R$ 384,36)
+        created_at_temp: new Date().toISOString()
+      };
+
+      if (!navigate) throw new Error("Erro interno de navegação");
+
+      // 2. PERSISTÊNCIA DE SESSÃO
+      // Usamos sessionStorage para que, se o usuário fechar a aba, os dados sensíveis sumam
+      sessionStorage.setItem("lina_checkout_session", JSON.stringify(checkoutData));
+
       setIsCartOpen(false);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
 
-      // Simula uma pequena verificação de integridade antes de liberar
-      // Aqui você pode validar estoque ou preços se quiser
+      // Transição suave para a tela de endereço (image_0efb66.png)
+      setTimeout(() => {
+        navigate("/checkout");
+      }, 300);
 
     } catch (error) {
-      toast.error("Erro ao iniciar checkout. Tente novamente.");
-      setIsCheckingOut(false); // Destrava o botão se der erro
+      console.error("Erro na transição:", error);
+      toast.error("Erro ao processar pedido. Tente novamente.");
+      setIsCheckingOut(false);
     }
   };
+
 
   // --- LÓGICA DE FAVORITOS ---
   const toggleFavorite = (product) => {

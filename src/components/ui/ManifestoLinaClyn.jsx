@@ -1,6 +1,21 @@
-import React from 'react';
+
+import { useNavigate } from 'react-router-dom';
 
 export function ManifestoLinaClyn() {
+
+
+    const navigate = useNavigate();
+
+    const navegarPrHistory = () => {
+        // Redireciona para a página "/sobre" definida no seu App.js
+        navigate('/sobre');         // Redireciona para a Home
+
+        // Dica: use window.scrollTo(0, 0) para garantir que a página 
+        // comece do topo quando carregar a nova rota
+        window.scrollTo(0, 0);
+    }
+
+
     return (
         <section className="w-full py-16 px-4 bg-background transition-colors duration-500">
             <div className="max-w-6xl mx-auto">
@@ -59,7 +74,9 @@ export function ManifestoLinaClyn() {
                             Transformando a conexão entre quem usa e o verdadeiro luxo da personalidade.
                         </p>
 
-                        <button className="w-fit bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-xl font-black uppercase italic text-[10px] tracking-widest transition-all active:scale-95 shadow-xl shadow-red-600/20">
+                        <button
+                            onClick={navegarPrHistory}
+                            className="w-fit bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-xl font-black uppercase italic text-[10px] tracking-widest transition-all active:scale-95 shadow-xl shadow-red-600/20">
                             Conheça Nossa História
                         </button>
                     </div>

@@ -55,6 +55,17 @@ O projeto segue uma estrutura modular e organizada para facilitar a manutenção
 └── tailwind.config.js  # Configurações de design system
 ```
 
+### 🚀 Atualizações Recentes
+
+#### 📊 Sistema de Contagem Animada (Counter Up)
+
+Implementação de um motor de animação de números inteligente que:
+
+- **Gatilho por Visualização:** A animação inicia automaticamente quando o usuário rola a página até os dados (`react-intersection-observer`).
+- **Formatação Dinâmica:** Suporta automaticamente o padrão brasileiro de milhar, notas de avaliação e símbolos de porcentagem.
+- **Componente Reutilizável:** A mesma lógica alimenta as estatísticas da página **Sobre** e da página de **Serviços**, garantindo consistência visual.
+- **Lógica de Reinicialização:** Caso o usuário saia da seção e volte, a contagem reinicia, mantendo o aspecto estratégico de "impacto" visual.
+
 Quizito Cristiano
 
 ## 👤 Desenvolvedor

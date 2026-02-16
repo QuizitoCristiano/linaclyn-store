@@ -51,7 +51,7 @@ export function CategoriesSection({ activeFilter, onFilterChange }) {
             {/* Nome da Categoria */}
             <span className={`
               text-[10px] md:text-xs font-black uppercase tracking-[0.2em] transition-colors duration-300 text-center italic
-              ${activeFilter === category.id ? 'text-red-600' : 'text-white/80 group-hover:text-red-600'}
+              ${activeFilter === category.id ? 'text-red-600' : ' group-hover:text-red-600'}
             `}>
               {category.name}
             </span>

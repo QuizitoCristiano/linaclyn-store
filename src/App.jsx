@@ -82,6 +82,7 @@ function AppContent() {
         {/* 1. MUNDO CLIENTE */}
         <Route element={<ClientLayout />}>
           <Route path="/" element={<ClientHome />} />
+
           <Route path="/sobre" element={<Sobre />} />
           <Route path="/servicos" element={<Servicos />} />
           <Route path="/contato" element={<Contato />} />
@@ -92,7 +93,8 @@ function AppContent() {
         <Route path="/auth" element={<AuthPage onClose={handleCloseAuth} />} />
 
         {/* 3. MUNDO CHECKOUT */}
-        <Route path="/checkout/*" element={isCheckingOut ? <CheckoutRouter /> : <Navigate to="/" />} />
+        {/* <Route path="/checkout/*" element={isCheckingOut ? <CheckoutRouter /> : <Navigate to="/" />} /> */}
+        <Route path="/checkout/*" element={<CheckoutRouter />} />
 
         {/* 4. MUNDO ADMIN */}
         <Route path="/admin" element={

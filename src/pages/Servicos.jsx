@@ -2,7 +2,6 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  Sparkles,
   Code,
   Lightbulb,
   Headphones,
@@ -12,9 +11,14 @@ import {
   Rocket,
   Palette,
   Smartphone,
-  Globe,
   Settings,
+  CheckCircle2,
+  Users,
+  Clock,
+  Star
 } from "lucide-react";
+import { AnimatedCounter } from "./AnimatedSobre";
+
 
 
 export default function Servicos() {
@@ -78,16 +82,18 @@ export default function Servicos() {
   ];
 
   const stats = [
-    { value: "500+", label: "Projetos Entregues" },
-    { value: "98%", label: "Satisfação do Cliente" },
-    { value: "24/7", label: "Suporte Disponível" },
-    { value: "10+", label: "Anos de Experiência" },
+    { value: "500+", label: "Projetos Entregues", icon: CheckCircle2 },
+    { value: "98%", label: "Satisfação do Cliente", icon: Users },
+    { value: "24/7", label: "Suporte Disponível", icon: Clock },
+    { value: "10+", label: "Anos de Experiência", icon: Star },
   ];
+
+
 
   return (
     <>
-      <div className="min-h-screen bg-background">
-        {/* Hero Section */}
+      <div className="min-h-screen bg-background text-foreground">
+
         <section className="relative py-20 from-purple-50 to-pink-50 border-[1px] border-gray-200 dark:border-gray-800 rounded-xl dark:bg-transparent">
           <div className="absolute top-0 left-0 w-52 h-52 bg-linaclyn-red rounded-full blur-3xl opacity-5 animate-pulse"></div>
           <div className="absolute bottom-0 right-0 w-72 h-72 bg-linaclyn-red rounded-full blur-3xl opacity-5 animate-pulse" style={{ animationDelay: '1s' }}></div>
@@ -128,38 +134,57 @@ export default function Servicos() {
             </Button>
           </div>
         </section>
+        {/* Hero Section - Foco em impacto e tipografia pesada */}
 
-        {/* Services Grid */}
-        <section className="py-12 md:py-20 px-4">
+
+        {/* Services Grid - Menos cores, mais autoridade */}
+        <section className="py-20 px-4">
           <div className="max-w-7xl mx-auto">
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {services.map((service, index) => (
                 <Card
                   key={index}
-                  className="group relative overflow-hidden border-2 border-border hover:border-linaclyn-red transition-all duration-300 hover-lift animate-scale-in bg-card"
+                  className="group relative overflow-hidden border border-border/60 bg-card/40 backdrop-blur-md hover:border-linaclyn-red transition-all duration-500 hover-lift animate-scale-in shadow-sm hover:shadow-xl"
                   style={{ animationDelay: `${index * 0.05}s` }}
                 >
-                  <CardContent className="p-6 md:p-8">
-                    {/* Icon with gradient background */}
-                    <div className={`inline-flex items-center justify-center w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-gradient-to-br ${service.color} mb-4 group-hover:scale-110 transition-transform duration-300 shadow-lg`}>
-                      <service.icon className="w-7 h-7 md:w-8 md:h-8 text-white" />
+                  <CardContent className="p-8">
+                    {/* O "QUADRADINHO" DO ÍCONE:
+                - No Light Mode: Já nasce Vermelho LinaClyn com ícone Branco.
+                - No Dark Mode: Nasce cinza discreto e acende no hover.
+            */}
+                    <div className={`
+              inline-flex items-center justify-center w-14 h-14 rounded-xl mb-6 transition-all duration-500 
+              
+              /* ESTADO INICIAL (Modo Claro): Fundo Vermelho, Ícone Branco */
+              bg-linaclyn-red text-white shadow-[0_5px_15px_rgba(231,34,46,0.3)]
+              
+              /* ESTADO INICIAL (Modo Escuro): Fundo Cinza Tech, Ícone Cinza */
+              dark:bg-secondary dark:text-zinc-400 
+              
+              /* COMPORTAMENTO NO HOVER (Modo Escuro): Acende o Vermelho */
+              dark:group-hover:bg-linaclyn-red dark:group-hover:text-white
+              
+              /* EFEITO DE MOVIMENTO: Dá um 'pop' em qualquer modo */
+              group-hover:scale-110 group-hover:shadow-[0_8px_25px_rgba(231,34,46,0.5)]
+            `}>
+                      <service.icon className="w-7 h-7" />
                     </div>
 
-                    {/* Title */}
-                    <h3 className="text-lg md:text-xl font-bold text-card-foreground mb-2 group-hover:text-linaclyn-red transition-colors">
+                    {/* Título com Tipografia Premium Sport */}
+                    <h3 className="text-xl font-black uppercase italic tracking-tight text-card-foreground mb-3 group-hover:text-linaclyn-red transition-colors">
                       {service.title}
                     </h3>
 
-                    {/* Description */}
-                    <p className="text-sm md:text-base text-muted-foreground mb-4 leading-relaxed">
+                    {/* Descrição */}
+                    <p className="text-sm text-muted-foreground mb-6 leading-relaxed font-medium">
                       {service.description}
                     </p>
 
-                    {/* Features */}
-                    <ul className="space-y-2">
+                    {/* Lista de Features com Checkpoint Vermelho */}
+                    <ul className="space-y-3">
                       {service.features.map((feature, idx) => (
-                        <li key={idx} className="flex items-center gap-2 text-xs md:text-sm text-muted-foreground">
-                          <div className="w-1.5 h-1.5 rounded-full bg-linaclyn-red"></div>
+                        <li key={idx} className="flex items-center gap-2 text-xs font-bold uppercase text-muted-foreground/70">
+                          <div className="w-1.5 h-1.5 rounded-full bg-linaclyn-red" />
                           {feature}
                         </li>
                       ))}
@@ -171,20 +196,16 @@ export default function Servicos() {
           </div>
         </section>
 
-        {/* Stats Section */}
-        <section className="py-12 md:py-20 px-4 bg-gradient-to-r from-linaclyn-red to-linaclyn-red-dark text-white">
-          <div className="max-w-6xl mx-auto">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8">
+        {/* Stats Section - O Vermelho Oficial da LinaClyn */}
+        <section className="py-24 bg-linaclyn-red text-white">
+          <div className="max-w-6xl mx-auto px-4 text-center italic font-black uppercase">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-12 md:gap-8">
               {stats.map((stat, index) => (
-                <div
-                  key={index}
-                  className="text-center animate-fade-in-up"
-                  style={{ animationDelay: `${index * 0.1}s` }}
-                >
-                  <div className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-1 md:mb-2">
-                    {stat.value}
+                <div key={index} className="animate-fade-in-up">
+                  <div className="text-4xl md:text-6xl mb-2 tracking-tighter italic leading-none">
+                    <AnimatedCounter value={stat.value} />
                   </div>
-                  <div className="text-white/90 text-xs md:text-sm lg:text-base">
+                  <div className="text-white/60 text-[10px] md:text-xs tracking-[0.2em] font-black uppercase">
                     {stat.label}
                   </div>
                 </div>
@@ -193,89 +214,23 @@ export default function Servicos() {
           </div>
         </section>
 
-        {/* Why Choose Us Section */}
-        <section className="py-12 md:py-20 px-4 bg-linaclyn-gray-light dark:bg-card/50">
-          <div className="max-w-6xl mx-auto">
-            <div className="text-center mb-8 md:mb-16 animate-fade-in-up">
-              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-foreground mb-3 md:mb-4 px-2">
-                Por Que Escolher a
-                <span className="block text-linaclyn-red">LinaClyn?</span>
-              </h2>
-              <p className="text-base md:text-lg lg:text-xl text-muted-foreground max-w-2xl mx-auto px-4">
-                Comprometidos com a excelência e resultados que superam expectativas
-              </p>
-            </div>
-
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8">
-              <Card className="bg-card border-2 border-border hover:border-linaclyn-red transition-all duration-300 hover-lift animate-fade-in-up">
-                <CardContent className="p-6 md:p-8 text-center">
-                  <div className="inline-flex items-center justify-center w-12 h-12 md:w-14 md:h-14 rounded-full bg-linaclyn-red-light dark:bg-linaclyn-red/20 mb-3 md:mb-4">
-                    <Rocket className="w-6 h-6 md:w-7 md:h-7 text-linaclyn-red" />
-                  </div>
-                  <h3 className="text-lg md:text-xl lg:text-2xl font-bold text-card-foreground mb-2 md:mb-3">
-                    Resultados Rápidos
-                  </h3>
-                  <p className="text-sm md:text-base text-muted-foreground leading-relaxed">
-                    Entregamos projetos eficientemente sem comprometer a qualidade.
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-card border-2 border-border hover:border-linaclyn-red transition-all duration-300 hover-lift animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
-                <CardContent className="p-6 md:p-8 text-center">
-                  <div className="inline-flex items-center justify-center w-12 h-12 md:w-14 md:h-14 rounded-full bg-linaclyn-red-light dark:bg-linaclyn-red/20 mb-3 md:mb-4">
-                    <Shield className="w-6 h-6 md:w-7 md:h-7 text-linaclyn-red" />
-                  </div>
-                  <h3 className="text-lg md:text-xl lg:text-2xl font-bold text-card-foreground mb-2 md:mb-3">
-                    Qualidade Garantida
-                  </h3>
-                  <p className="text-sm md:text-base text-muted-foreground leading-relaxed">
-                    Padrões de excelência em cada projeto que desenvolvemos.
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-card border-2 border-border hover:border-linaclyn-red transition-all duration-300 hover-lift animate-fade-in-up sm:col-span-2 lg:col-span-1" style={{ animationDelay: '0.2s' }}>
-                <CardContent className="p-6 md:p-8 text-center">
-                  <div className="inline-flex items-center justify-center w-12 h-12 md:w-14 md:h-14 rounded-full bg-linaclyn-red-light dark:bg-linaclyn-red/20 mb-3 md:mb-4">
-                    <Headphones className="w-6 h-6 md:w-7 md:h-7 text-linaclyn-red" />
-                  </div>
-                  <h3 className="text-lg md:text-xl lg:text-2xl font-bold text-card-foreground mb-2 md:mb-3">
-                    Suporte Dedicado
-                  </h3>
-                  <p className="text-sm md:text-base text-muted-foreground leading-relaxed">
-                    Equipe sempre disponível para ajudar e resolver suas dúvidas.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </section>
-
-        {/* Final CTA */}
-        <section className="py-12 md:py-20 px-4 bg-gradient-to-br from-linaclyn-red-light dark:from-linaclyn-red/10 to-background">
+        {/* Final CTA - Estilo "Call to Action" de Startup de Elite */}
+        <section className="py-24 px-4 bg-background">
           <div className="max-w-4xl mx-auto text-center animate-fade-in-up">
-            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-foreground mb-4 md:mb-6 px-2">
-              Pronto para Transformar seu
-              <span className="block text-linaclyn-red">Negócio?</span>
+            <h2 className="text-4xl md:text-6xl font-black italic uppercase tracking-tighter mb-8">
+              Pronto para o <br />
+              <span className="text-linaclyn-red">Próximo Nível?</span>
             </h2>
-            <p className="text-base md:text-lg lg:text-xl text-muted-foreground mb-6 md:mb-8 max-w-2xl mx-auto px-4">
-              Entre em contato conosco e descubra como podemos ajudar você a alcançar seus objetivos
-            </p>
             <Button
               size="lg"
-              className="group px-8 py-5 md:px-10 md:py-6 text-base md:text-lg font-semibold bg-linaclyn-red hover:bg-linaclyn-red-dark text-white rounded-xl shadow-lg hover-lift transition-all duration-300"
+              className="group px-12 py-8 text-xl font-black uppercase italic bg-foreground text-background hover:bg-linaclyn-red hover:text-white rounded-2xl shadow-2xl transition-all duration-500"
             >
-              Solicitar Orçamento
-              <ShoppingBag className="w-4 h-4 md:w-5 md:h-5 ml-2 group-hover:scale-110 transition-transform" />
+              Começar Agora
+              <Rocket className="w-6 h-6 ml-3 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
             </Button>
           </div>
         </section>
       </div>
-
-
-
     </>
-
   );
 }

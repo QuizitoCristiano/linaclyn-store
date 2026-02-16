@@ -1,12 +1,40 @@
 import React, { useState, useMemo } from 'react';
-import { ShoppingCart, Star, X } from 'lucide-react'; // Adicionado X para o fechar
+import { Heart, ShoppingCart, Star, X } from 'lucide-react'; // Adicionado X para o fechar
 import { useProducts } from '@/context/ProductContext';
 import { CategoriesSection } from './CategoriesSection';
+import { useCart } from '@/context/CartContext';
+import { Item } from '@radix-ui/react-dropdown-menu';
 
 export function PaginaVitrineDinamica() {
     const { products, loading } = useProducts();
     const [filter, setFilter] = useState('TODAS');
     const [selectedProduct, setSelectedProduct] = useState(null);
+    // Pegando as funções e estados do seu CartProvider
+    const {
+        addToCart,
+        toggleFavorite,
+        favoriteItem,
+        removeFromWishlist
+    } = useCart();
+    // Função para verificar se está favoritado
+    const isFavorite = (id) => favoriteItem.some(item => item.id === id);
+
+
+    // Função de compra: Adiciona ao carrinho e remove dos favoritos
+    const addCarinho = (products, e) => {
+        if (e) e.stopPropagation();
+
+        // 1. Adiciona ao carrinho (sua função já tem o toast)
+        addToCart(products);
+
+        // 2. Remove dos favoritos se ele estiver lá
+        if (isFavorite(products.id)) {
+            removeFromWishlist(products.id);
+        }
+    };
+
+
+
 
     const filteredProducts = useMemo(() => {
         if (!products) return [];
@@ -31,6 +59,11 @@ export function PaginaVitrineDinamica() {
                 onFilterChange={(newFilter) => setFilter(newFilter)}
             />
 
+
+
+
+
+
             {/* VITRINE FILTRADA */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 p-4">
                 {filteredProducts.map((p) => (
@@ -38,6 +71,26 @@ export function PaginaVitrineDinamica() {
                         key={p.id}
                         className="group relative bg-card border border-red-600/20 rounded-[1.5rem] overflow-hidden hover:border-red-600 transition-all duration-500 flex flex-col shadow-lg"
                     >
+
+
+                        {/* ÍCONE DE FAVORITO CONECTADO AO CONTEXTO */}
+                        <div className="absolute top-3 right-3 z-20">
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleFavorite(p);
+                                }}
+                                className={`backdrop-blur-md p-1.5 rounded-full transition-all border border-white/5 active:scale-90 ${isFavorite(p.id)
+                                    ? "bg-red-600 text-white border-red-600"
+                                    : "bg-background/80 text-muted-foreground hover:text-red-600"
+                                    }`}
+                            >
+                                <Heart className={`w-3.5 h-3.5 ${isFavorite(p.id) ? "fill-current" : ""}`} />
+                            </button>
+                        </div>
+
+
+
                         {/* AREA CLICÁVEL - Abre o Modal */}
                         <div onClick={() => setSelectedProduct(p)} className="cursor-pointer flex flex-col flex-grow">
                             <div className="relative h-44 overflow-hidden bg-muted/10 flex items-center justify-center border-b border-red-600/10">
@@ -63,7 +116,9 @@ export function PaginaVitrineDinamica() {
                             <span className="text-card-foreground font-black text-xs italic block mb-2">
                                 R$ {parseFloat(p.preco || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </span>
-                            <button className="w-full bg-red-600 hover:bg-red-700 text-white h-8 rounded-lg flex items-center justify-center gap-2 transition-all active:scale-95 text-[8px] font-black uppercase italic">
+                            <button
+                                onClick={(e) => addCarinho(p, e)}
+                                className="w-full bg-red-600 hover:bg-red-700 text-white h-8 rounded-lg flex items-center justify-center gap-2 transition-all active:scale-95 text-[8px] font-black uppercase italic">
                                 <ShoppingCart className="w-3.5 h-3.5" /> Adicionar
                             </button>
                         </div>
@@ -115,7 +170,9 @@ export function PaginaVitrineDinamica() {
                                             R$ {parseFloat(selectedProduct.preco || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                         </span>
                                     </div>
-                                    <button className="bg-red-600 hover:bg-red-700 text-white px-6 h-12 rounded-2xl flex items-center gap-3 transition-all active:scale-95 font-black uppercase italic text-xs shadow-xl shadow-red-600/40">
+                                    <button
+                                        onClick={(e) => addCarinho(selectedProduct, e)}
+                                        className="bg-red-600 hover:bg-red-700 text-white px-6 h-12 rounded-2xl flex items-center gap-3 transition-all active:scale-95 font-black uppercase italic text-xs shadow-xl shadow-red-600/40">
                                         <ShoppingCart className="w-4 h-4" />
                                         Comprar Agora
                                     </button>

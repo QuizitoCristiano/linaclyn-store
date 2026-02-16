@@ -10,8 +10,10 @@ export default function CardSecureForm({ total, onConfirm, loading, inputStyle, 
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-
         if (!stripe || !elements) return;
+
+        // 1. Iniciamos o bloqueio visual (loading vem do props)
+        // Mas precisamos garantir que ele seja liberado em caso de erro aqui dentro
 
         if (name.length < 5) {
             return toast.error("Digite o nome completo conforme o cartão.");
@@ -19,14 +21,22 @@ export default function CardSecureForm({ total, onConfirm, loading, inputStyle, 
 
         const cardElement = elements.getElement(CardElement);
 
-        // AQUI A MÁGICA: O dado do cartão vira um Token Seguro na Stripe
-        const { error, token } = await stripe.createToken(cardElement, { name });
+        try {
+            // Tentativa de criar o token
+            const { error, token } = await stripe.createToken(cardElement, { name });
 
-        if (error) {
-            toast.error(error.message);
-        } else {
-            // Enviamos apenas o TOKEN para o seu Firebase. Nada de números reais!
-            onConfirm(token);
+            if (error) {
+                console.error("[Stripe Error]", error);
+                toast.error(error.message);
+                // IMPORTANTE: Se deu erro na Stripe, precisamos avisar o pai para parar o loading
+                onConfirm(null);
+            } else {
+                onConfirm(token);
+            }
+        } catch (err) {
+            console.error("Erro fatal na comunicação:", err);
+            toast.error("Falha de rede com a Stripe. Verifique sua conexão.");
+            onConfirm(null); // Solta o botão
         }
     };
 

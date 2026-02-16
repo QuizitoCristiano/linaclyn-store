@@ -35,7 +35,7 @@ export function VitrineProdutos() {
     if (loading) return (
         <div className="flex items-center justify-center p-10">
             <div className="text-foreground animate-pulse font-black uppercase italic tracking-tighter text-lg">
-                Carregando Performance...
+                Carregando LinaClyn...
             </div>
         </div>
     );
@@ -153,7 +153,9 @@ export function VitrineProdutos() {
                                             R$ {parseFloat(selectedProduct.preco || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                         </span>
                                     </div>
-                                    <button className="bg-red-600 hover:bg-red-700 text-white px-6 h-12 rounded-2xl flex items-center gap-3 transition-all active:scale-95 font-black uppercase italic text-xs shadow-xl shadow-red-600/40">
+                                    <button
+                                        onClick={(e) => handlePurchase(selectedProduct, e)}
+                                        className="bg-red-600 hover:bg-red-700 text-white px-6 h-12 rounded-2xl flex items-center gap-3 transition-all active:scale-95 font-black uppercase italic text-xs shadow-xl shadow-red-600/40">
                                         <ShoppingCart className="w-4 h-4" />
                                         Comprar Agora
                                     </button>
