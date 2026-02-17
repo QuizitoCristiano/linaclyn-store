@@ -120,6 +120,7 @@ export default function Header({ onAdminAccess }) {
         {isMenuOpen && (
           <div className="md:hidden border-t border-border bg-background/98 backdrop-blur-xl animate-in slide-in-from-top-4 duration-300">
             <div className="px-6 py-6 space-y-4">
+              {/* SearchBar fecha o menu após buscar */}
               <SearchBar onSearch={(q) => { performSearch(q); closeMenu(); }} />
 
               <div className="flex flex-col space-y-1">
@@ -127,31 +128,31 @@ export default function Header({ onAdminAccess }) {
                   <NavLink
                     key={item.path}
                     to={item.path}
-                    onClick={closeMenu}
+                    // Forçamos o fechamento no clique
+                    onClick={() => {
+                      console.log("Fechando menu..."); // Para você testar no console
+                      closeMenu();
+                    }}
                     className={({ isActive }) =>
-                      `text-sm font-black italic uppercase tracking-tighter transition-colors py-3 border-b border-border/50 ${isActive ? "text-linaclyn-red" : "text-muted-foreground"
+                      `text-sm font-black italic uppercase tracking-tighter transition-colors py-4 border-b border-border/50 flex items-center justify-between ${isActive ? "text-linaclyn-red" : "text-muted-foreground"
                       }`
                     }
                   >
                     {item.name}
+                    {/* Adicionei uma setinha discreta pra dar um feedback visual no mobile */}
+                    <span className="opacity-20">→</span>
                   </NavLink>
                 ))}
 
-                {/* Login rápido no mobile se não estiver logado */}
+                {/* Link de Auth */}
                 {!user && (
-                  <Link to="/auth" onClick={closeMenu} className="text-sm font-black italic uppercase tracking-tighter text-linaclyn-red py-3">
+                  <Link
+                    to="/auth"
+                    onClick={closeMenu}
+                    className="text-sm font-black italic uppercase tracking-tighter text-linaclyn-red py-4 border-b border-border/50"
+                  >
                     Minha Conta (Entrar)
                   </Link>
-                )}
-
-                {/* Painel Admin no mobile */}
-                {user?.isAdmin && (
-                  <button
-                    onClick={() => { onAdminAccess(); closeMenu(); }}
-                    className="text-sm font-black italic uppercase tracking-tighter text-emerald-500 py-3 text-left"
-                  >
-                    Painel Admin
-                  </button>
                 )}
               </div>
             </div>
