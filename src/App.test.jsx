@@ -1,8 +1,6 @@
 import "@testing-library/jest-dom";
 import { vi } from "vitest";
 
-// --- 1. MOCKS DE AMBIENTE E NAVEGADOR ---
-
 // Evita erros de variáveis de ambiente vazias
 vi.stubEnv("VITE_FIREBASE_API_KEY", "fake-key");
 vi.stubEnv("VITE_FIREBASE_PROJECT_ID", "linaclyn-test");
