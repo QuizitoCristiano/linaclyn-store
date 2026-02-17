@@ -193,14 +193,41 @@ export function CartProvider({ children }) {
 
 
   // --- LÓGICA DE FAVORITOS ---
+  // const toggleFavorite = (product) => {
+  //   setfavoriteItem((prev) => {
+  //     const isFavorite = prev.find((item) => item.id === product.id);
+  //     if (isFavorite) {
+  //       toast.info(`${product.nome} removido dos favoritos`);
+  //       return prev.filter((item) => item.id !== product.id);
+  //     }
+  //     toast.success(`${product.nome} nos favoritos!`);
+  //     return [...prev, product];
+  //   });
+  // };
+
+  // --- LÓGICA DE FAVORITOS COM INTELIGÊNCIA DE RECOMENDAÇÃO ---
   const toggleFavorite = (product) => {
     setfavoriteItem((prev) => {
       const isFavorite = prev.find((item) => item.id === product.id);
+
+      // Pegamos a lista de interesses (categorias que ele mais curte)
+      let interests = JSON.parse(localStorage.getItem("lina_interests") || "[]");
+
       if (isFavorite) {
-        toast.info(`${product.nome} removido dos favoritos`);
         return prev.filter((item) => item.id !== product.id);
       }
-      toast.success(`${product.nome} nos favoritos!`);
+
+      // --- LÓGICA DINÂMICA ---
+      // Não importa se é "SAPATO" ou "GERAL", o sistema captura a string real
+      if (product.categoria) {
+        // Remove se a categoria já existia e coloca no topo (é o interesse mais recente)
+        interests = [product.categoria, ...interests.filter(cat => cat !== product.categoria)];
+
+        // Guardamos apenas as 5 categorias mais recentes para o sistema não "viciar"
+        localStorage.setItem("lina_interests", JSON.stringify(interests.slice(0, 5)));
+      }
+
+      toast.success(`${product.nome} adicionado aos favoritos!`);
       return [...prev, product];
     });
   };

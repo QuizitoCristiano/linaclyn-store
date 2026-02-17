@@ -63,7 +63,7 @@ const AdminLayout = ({ logout }) => (
 
 // --- 🚀 LÓGICA PRINCIPAL ---
 
-function AppContent() {
+export function AppContent() {
   const [honeypot, setHoneypot] = useState('');
   const { loading, logout } = useAuth();
   const { isCheckingOut } = useCart();

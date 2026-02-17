@@ -1,20 +1,36 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ShoppingCart, Star, Heart, X } from 'lucide-react';
 import { useProducts } from '@/context/ProductContext';
 import { useCart } from '@/context/CartContext'; // Importando seu contexto real
+import { ProductSkeleton } from './ProductSkeleton';
 
 export function VitrineProdutos() {
     const { products, loading } = useProducts();
-
-    // Pegando as funções e estados do seu CartProvider
-    const {
-        addToCart,
-        toggleFavorite,
-        favoriteItem,
-        removeFromWishlist
-    } = useCart();
-
+    const { addToCart, toggleFavorite, favoriteItem, removeFromWishlist } = useCart();
     const [selectedProduct, setSelectedProduct] = useState(null);
+
+    // --- MOTOR DE INTELIGÊNCIA (LIGAÇÃO) ---
+    const produtosOrdenados = useMemo(() => {
+        if (!products) return [];
+
+        // 1. Defesa: Recupera interesses de forma segura
+        let interesses = [];
+        try {
+            interesses = JSON.parse(localStorage.getItem("lina_interests") || "[]");
+        } catch (e) { interesses = []; }
+
+        // 2. Ataque: Ordena a vitrine com base no comportamento
+        return [...products].sort((a, b) => {
+            const indexA = interesses.indexOf(a.categoria);
+            const indexB = interesses.indexOf(b.categoria);
+
+            // Se a categoria está nos interesses (index >= 0), ela tem prioridade
+            const pesoA = indexA !== -1 ? indexA : 999;
+            const pesoB = indexB !== -1 ? indexB : 999;
+
+            return pesoA - pesoB;
+        });
+    }, [products, favoriteItem]); // Re-calcula quando os favoritos mudam
 
     // Função para verificar se está favoritado
     const isFavorite = (id) => favoriteItem.some(item => item.id === id);
@@ -40,10 +56,11 @@ export function VitrineProdutos() {
         </div>
     );
 
+
     return (
         <div className="relative">
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 p-4 bg-background transition-colors duration-500">
-                {products.map((p) => (
+                {produtosOrdenados.map((p) => (
                     <div
                         key={p.id}
                         className="group relative bg-card border border-red-600/20 rounded-[1.5rem] overflow-hidden hover:border-red-600 transition-all duration-500 flex flex-col shadow-lg shadow-red-600/5 hover:shadow-red-600/20"
@@ -63,6 +80,7 @@ export function VitrineProdutos() {
                                 <Heart className={`w-3.5 h-3.5 ${isFavorite(p.id) ? "fill-current" : ""}`} />
                             </button>
                         </div>
+
 
                         {/* TAG DE CATEGORIA */}
                         <div className="absolute top-3 left-3 z-10">
