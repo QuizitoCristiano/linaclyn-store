@@ -192,19 +192,6 @@ export function CartProvider({ children }) {
   };
 
 
-  // --- LÓGICA DE FAVORITOS ---
-  // const toggleFavorite = (product) => {
-  //   setfavoriteItem((prev) => {
-  //     const isFavorite = prev.find((item) => item.id === product.id);
-  //     if (isFavorite) {
-  //       toast.info(`${product.nome} removido dos favoritos`);
-  //       return prev.filter((item) => item.id !== product.id);
-  //     }
-  //     toast.success(`${product.nome} nos favoritos!`);
-  //     return [...prev, product];
-  //   });
-  // };
-
   // --- LÓGICA DE FAVORITOS COM INTELIGÊNCIA DE RECOMENDAÇÃO ---
   const toggleFavorite = (product) => {
     setfavoriteItem((prev) => {

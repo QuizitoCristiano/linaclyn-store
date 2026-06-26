@@ -23,13 +23,16 @@ Object.defineProperty(window, "matchMedia", {
 });
 
 // --- 2. MOCK CORINGA PARA O LUCIDE REACT ---
-// Resolve automaticamente erros de ícones como "LogIn", "Filter", "Search", etc.
 vi.mock("lucide-react", () => {
   return new Proxy(
     {},
     {
       get: (target, prop) => {
-        return (props) => <div data-testid={`icon-${prop}`} {...props} />;
+        // Criamos um componente funcional válido para o React
+        const MockIcon = (props) => {
+          return <div data-testid={`icon-${String(prop)}`} {...props} />;
+        };
+        return MockIcon;
       },
     },
   );

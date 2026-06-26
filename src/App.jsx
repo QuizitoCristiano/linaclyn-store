@@ -20,7 +20,7 @@ import ClientHome from "@/pages/ClientHome";
 import Sobre from "@/pages/Sobre";
 import Servicos from "@/pages/Servicos";
 import Contato from "@/pages/Contato";
-import AuthPage from "./Cadastro/login&Cad";
+import AuthPage from "./Cadastro/AuthPage";
 import Dashboard from "./AdiminProtudos/Dashboard";
 import AdminProdutos from "./AdiminProtudos/Produtos";
 import AdminPedidos from "./AdiminProtudos/Pedidos";
@@ -29,6 +29,7 @@ import AdminFinanceiro from "./AdiminProtudos/AdminFinanceiro";
 import CheckoutRouter from "./Cadastro/CheckoutRouter";
 import NotFound from "./pages/not-found";
 import AdminMensagens from "./AdiminProtudos/AdminMensagens";
+
 
 // --- 🛡️ COMPONENTES DE ESTRUTURA ---
 
@@ -105,7 +106,7 @@ export function AppContent() {
           <Route index element={<Dashboard />} />
           <Route path="products" element={<AdminProdutos />} />
           <Route path="orders" element={<AdminPedidos />} />
-          <Route path="customers" element={<PaginaClientes />} />
+          <Route path="customers" element={<PaginaClientes />} />-
           <Route path="messages" element={<AdminMensagens />} />
           <Route path="finance" element={<AdminFinanceiro />} />
         </Route>

@@ -4,26 +4,30 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 import basicSsl from "@vitejs/plugin-basic-ssl";
 
-// https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
-    basicSsl(), // Ativa o certificado SSL para o Stripe funcionar
-  ],
+    // Desativado por padrão. Só ative se REALMENTE precisar testar HTTPS local algum dia
+    // mode !== 'test' && basicSsl(), 
+  ].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
   },
   server: {
-    https: true,
-    host: true,
+    https: false, // MUDOU AQUI: Desativa o HTTPS barra-navegador
+    host: false,  // MUDOU AQUI: Remove o monte de IPs, roda só no localhost
   },
-  // --- ADICIONANDO A SEÇÃO DE TESTES (VITEST) ---
   test: {
-    globals: true, // Permite usar describe/it/expect sem importá-los em cada arquivo
-    environment: "jsdom", // Essencial para simular o DOM do navegador nos componentes React
-    setupFiles: "./src/setupTests.js", // Arquivo para extensões de segurança e matchers do DOM
-    include: ["src/**/*.{test,spec}.{js,jsx}"], // Garante que ele só procure testes dentro da src
+    globals: true,
+    environment: "jsdom",
+    setupFiles: "./src/setupTests.jsx",
+    include: ["src/**/*.{test,spec}.{js,jsx,ts,tsx}"],
+    server: {
+      deps: {
+        inline: [/sonner/],
+      }
+    }
   },
-});
+}));
